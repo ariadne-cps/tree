@@ -370,12 +370,38 @@ Void test_copy_and_reset() {
         ARIADNE_TESTING_PROVE(BinaryTreeNode::intersect(&prefixes,&disjoint));
     }
 
+    Void test_child_node_streaming_and_leaf_guards() {
+        BinaryTreeNode node(false);
+        node.split();
+        ARIADNE_TESTING_NOTE("child_node selects the left or right child; on a leaf it returns nullptr");
+        ARIADNE_TESTING_PROVE(node.child_node(false) == node.left_node());
+        ARIADNE_TESTING_PROVE(node.child_node(true) == node.right_node());
+        BinaryTreeNode leaf(true);
+        ARIADNE_TESTING_PROVE(leaf.child_node(false) == nullptr);
+        ARIADNE_TESTING_PROVE(leaf.child_node(true) == nullptr);
+
+        ARIADNE_TESTING_NOTE("make_leaf on an existing leaf only sets the state");
+        leaf.make_leaf(false);
+        ARIADNE_TESTING_PROVE(leaf.is_leaf());
+        ARIADNE_TESTING_PROVE(leaf.is_disabled());
+
+        ARIADNE_TESTING_NOTE("set_disabled on a non-leaf node throws NotALeafNodeException");
+        ARIADNE_TESTING_EXPECT_THROWS(NotALeafNodeException, node.set_disabled());
+
+        ARIADNE_TESTING_NOTE("Streaming a node prints its structure and leaf words");
+        node.left_node()->set_enabled();
+        std::ostringstream stream;
+        stream << node;
+        ARIADNE_TESTING_EXPECT_EQUAL(stream.str(), String("BinaryTreeNode( Tree: 100, Leaves: 10)"));
+    }
+
 };
 
 int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_binary_tree");
     ARIADNE_TESTING_ADD_TEST(TestBinaryTree, test_independent_binary_prefix_semantics);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTree, test_copy_and_reset);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTree, test_child_node_streaming_and_leaf_guards);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTree, test_binary_tree);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }
