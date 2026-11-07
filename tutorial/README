@@ -1,0 +1,11 @@
+Ariadne Tree installed-library tutorials
+
+After installing Tree to a prefix:
+
+  cmake -S tutorial -B tutorial-build -DCMAKE_PREFIX_PATH=/path/to/install
+  cmake --build tutorial-build
+  ./tutorial-build/tutorial_tree
+
+When the Python extension has been installed:
+
+  python tutorial/tutorial_tree.py

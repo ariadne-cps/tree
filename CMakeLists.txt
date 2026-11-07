@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(Tree VERSION 1.0)
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
-option(BUILD_PYTHON_BINDINGS "Build Python bindings" OFF)
+option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 
 if(NOT TARGET ariadne-build)
     find_package(Git REQUIRED)

@@ -1,0 +1,85 @@
+name: Coverage
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+env:
+  SCCACHE_GHA_ENABLED: "true"
+  SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
+  SCCACHE_CONF: ${{ github.workspace }}/ss/bui/cmake/sccache.toml
+
+jobs:
+  build:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { name: "macOS 26 arm AppleClang 21 [Coverage]", os: macos-26, cxx: "/usr/bin/clang++" }
+          - { name: "Ubuntu 24.04 x86 GCC 13 [Coverage]", os: ubuntu-24.04, cxx: "g++-13" }
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Enable compiler cache
+      uses: mozilla-actions/sccache-action@v0.0.11
+      continue-on-error: true
+
+    - name: Get macOS Concurrency
+      if: runner.os == 'macOS'
+      run: echo "NPROC=$(sysctl -n hw.ncpu)" >> "$GITHUB_ENV"
+
+    - name: Get Linux Concurrency
+      if: runner.os == 'Linux'
+      run: echo "NPROC=$(nproc)" >> "$GITHUB_ENV"
+
+    - name: Set Up macOS Dependencies
+      if: runner.os == 'macOS'
+      run: brew install ninja pkg-config gnupg
+
+    - name: Set Up Linux Dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build pkg-config lcov g++-13
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{ runner.workspace }}/build
+
+    - name: Initialize optional sccache before compilation
+      run: |
+        git submodule update --init -- ss/bui
+        cmake -P ss/bui/cmake/InitializeSccache.cmake
+
+    - name: Configure CMake
+      working-directory: ${{ runner.workspace }}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }} -G Ninja -DCOVERAGE=ON -DWARNINGS_AS_ERRORS=ON -DBUILD_PYTHON_BINDINGS=OFF -DCMAKE_CXX_COMPILER_LAUNCHER="$SCCACHE_LAUNCHER"
+
+    - name: Build, Test and Generate Code Coverage
+      working-directory: ${{ runner.workspace }}/build
+      run: cmake --build . --parallel $NPROC --target coverage
+
+    - name: Check Codecov Token
+      if: runner.os == 'macOS'
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      run: |
+        if [ -z "$CODECOV_TOKEN" ]; then
+          echo "CODECOV_TOKEN is not available"
+          exit 1
+        fi
+        echo "CODECOV_TOKEN is available"
+
+    - name: Upload Code Coverage
+      if: runner.os == 'macOS'
+      uses: codecov/codecov-action@v7.1.1
+      with:
+        files: ${{ runner.workspace }}/build/coverage.info
+        disable_search: true
+        fail_ci_if_error: true
+        verbose: true
+        token: ${{ secrets.CODECOV_TOKEN }}
