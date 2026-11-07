@@ -16,9 +16,13 @@ endif()
 if(EXISTS "${PROJECT_SOURCE_DIR}/.git")
     require_same_dependency_commit(Build CHAINS
         "build" "foundation|build" "testing|build"
-        "foundation|utility|build")
+        "foundation|utility|build"
+        "threading|build" "threading|logging|build"
+        "threading|logging|utility|build")
     require_same_dependency_commit(Testing CHAINS
-        "testing" "foundation|testing" "foundation|utility|testing")
+        "testing" "foundation|testing" "foundation|utility|testing"
+        "threading|testing" "threading|logging|testing"
+        "threading|logging|utility|testing")
 endif()
 setup_project()
 include_directories("${PROJECT_SOURCE_DIR}/include")
@@ -27,7 +31,7 @@ add_library(tree INTERFACE)
 target_include_directories(tree INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include/ariadne-tree>)
-target_link_libraries(tree INTERFACE foundation)
+target_link_libraries(tree INTERFACE foundation threading)
 add_subdirectory(src)
 target_link_libraries(TREE_SRC PRIVATE tree)
 ariadne_register_public_headers(

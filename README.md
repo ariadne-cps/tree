@@ -23,7 +23,7 @@ Although independently maintained and usable, this repository is also part of th
 - Installed-library C++ and Python tutorials.
 - Ubuntu, macOS, Windows, sanitizer and coverage CI.
 
-`BinaryTreeNode` is intentionally a **sequential building block**, not a synchronized container. Its child accessors return borrowed pointers, which can become invalid after mutations. Synchronization and parallel subtree processing belong to owning structures or higher-level algorithms; a mutex is not added to each node.
+`BinaryTreeNode` is intentionally a **sequential building block**, not a synchronized container, even though the Tree module now directly depends on Threading. Its child accessors return borrowed pointers, which can become invalid after mutations. Synchronization and parallel subtree processing belong to owning structures or higher-level algorithms; a mutex is not added to each node.
 
 The planned n-ary tree for hybrid-evolution trajectory dependencies is **not implemented**. It will be designed as a separate abstraction rather than imposed on `BinaryTreeNode`.
 
@@ -39,10 +39,11 @@ The planned n-ary tree for hybrid-evolution trajectory dependencies is **not imp
 
 ## Dependencies
 
-The repository contains these direct Git submodules:
+The repository contains these direct Git submodules (pinned consistently with the rest of Ariadne):
 
 - `ss/bui` -> [ariadne-cps/build](https://github.com/ariadne-cps/build), shared CMake infrastructure.
 - `ss/fou` -> [ariadne-cps/foundation](https://github.com/ariadne-cps/foundation), logical types including `ValidatedKleenean`.
+- `ss/thr` -> [ariadne-cps/threading](https://github.com/ariadne-cps/threading), shared threading and task-execution infrastructure for future concurrent tree owners and parallel algorithms.
 - `ss/tst` -> [ariadne-cps/testing](https://github.com/ariadne-cps/testing), standalone C++ testing.
 
 [Utility](https://github.com/ariadne-cps/utility), which provides `BinaryWord`, is reached transitively through Foundation. Python bindings use the Python Common and pybind11 infrastructure supplied by the Foundation dependency chain.

@@ -82,3 +82,12 @@ other paving consumers remain tested in their existing suites.
 Cross-platform compilation and sanitizers remain necessary to validate
 the include cleanup and eventual migration; documentation is not a
 substitute for a successful build.
+
+## Threading dependency and implementation boundary
+
+The Tree module directly depends on Ariadne Threading, so future tree owners
+and algorithms can reuse the shared threading infrastructure rather than
+create an independent execution or synchronization framework. This dependency
+does **not** make `BinaryTreeNode` thread-safe: the existing node, ownership,
+and borrowed-pointer semantics remain unchanged. Any concurrency contract must
+be provided and tested by the container or algorithm using the nodes.
