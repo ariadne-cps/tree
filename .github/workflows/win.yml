@@ -1,0 +1,115 @@
+name: Windows
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.config.name }} [${{ matrix.build_type }}]
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release, Debug]
+        config:
+          - { name: "Windows 2025 x86 MSVC", os: windows-2025, arch: x64 }
+          - { name: "Windows 11 arm MSVC", os: windows-11-arm, arch: arm64 }
+
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
+      SCCACHE_CONF: ${{ github.workspace }}/ss/bui/cmake/sccache.toml
+
+    steps:
+    - name: Enable long paths in Git
+      shell: pwsh
+      run: git config --system core.longpaths true
+
+    - uses: actions/checkout@v7
+
+    - name: Set up MSVC environment
+      uses: ilammy/msvc-dev-cmd@v1.13.0
+      with:
+        arch: ${{ matrix.config.arch }}
+
+    - name: Set up sccache
+      uses: mozilla-actions/sccache-action@v0.0.11
+      continue-on-error: true
+      with:
+        version: "v0.18.0"
+
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.13"
+
+    - name: Install Python Test Dependencies
+      if: matrix.build_type == 'Debug'
+      run: python -m pip install pytest
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{ runner.workspace }}/build
+
+    - name: Initialize optional sccache before compilation
+      run: |
+        git submodule update --init -- ss/bui
+        cmake -P ss/bui/cmake/InitializeSccache.cmake
+
+    - name: Configure CMake
+      working-directory: ${{ runner.workspace }}/build
+      run: cmake $env:GITHUB_WORKSPACE -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_FLAGS_DEBUG="/Z7 /Ob0 /Od /RTC1" -DCMAKE_C_COMPILER_LAUNCHER="$env:SCCACHE_LAUNCHER" -DCMAKE_CXX_COMPILER_LAUNCHER="$env:SCCACHE_LAUNCHER"  -DWARNINGS_AS_ERRORS=ON -DPYTHON_ENFORCE_TESTS=${{ matrix.build_type == 'Debug' && 'ON' || 'OFF' }}
+
+    - name: Build
+      working-directory: ${{ runner.workspace }}/build
+      run: cmake --build . --parallel --target everything
+
+    - name: Test C++
+      if: matrix.build_type == 'Debug'
+      working-directory: ${{ runner.workspace }}/build
+      run: ctest -LE python --output-on-failure
+
+
+    - name: Test Python
+      if: matrix.build_type == 'Debug'
+      working-directory: ${{ runner.workspace }}/build
+      run: ctest -L python --output-on-failure
+
+    - name: Install Ariadne Tree
+      if: matrix.build_type == 'Release'
+      working-directory: ${{ runner.workspace }}/build
+      run: cmake --install . --prefix "${{ runner.workspace }}/install"
+
+    - name: Prepare C++ Tree Tutorial
+      if: matrix.build_type == 'Release'
+      shell: pwsh
+      run: cmake -E copy_directory "$env:GITHUB_WORKSPACE/tutorial" "${{ runner.workspace }}/tutorial_tree"
+
+    - name: Check C++ Tree Tutorial
+      if: matrix.build_type == 'Release'
+      shell: pwsh
+      working-directory: ${{ runner.workspace }}/tutorial_tree
+      run: |
+        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="${{ runner.workspace }}/install" -DCMAKE_C_COMPILER_LAUNCHER="$env:SCCACHE_LAUNCHER" -DCMAKE_CXX_COMPILER_LAUNCHER="$env:SCCACHE_LAUNCHER" 
+        cmake --build build --parallel
+        $env:PATH = "${{ runner.workspace }}\install\bin;$env:PATH"
+        & ".\build\tutorial_tree.exe"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+
+    - name: Check Python Tree Tutorial
+      if: matrix.build_type == 'Release'
+      shell: pwsh
+      working-directory: ${{ github.workspace }}/tutorial
+      run: |
+        $env:PYTHONPATH = "${{ runner.workspace }}\install\Lib\site-packages"
+        $env:PATH = "${{ runner.workspace }}\install\bin;$env:PATH"
+        python -c "import pyariadne_tree; print(pyariadne_tree.__file__)"
+        python tutorial_tree.py
+
+
+    - name: Verify Uninstallation
+      if: matrix.build_type == 'Release'
+      working-directory: ${{ runner.workspace }}/build
+      run: cmake --build . --target uninstall
