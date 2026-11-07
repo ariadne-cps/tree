@@ -1,0 +1,11 @@
+include(CTest)
+add_executable(test_binary_tree test_binary_tree.cpp)
+target_link_libraries(test_binary_tree PRIVATE ariadne-tree tree ariadne-testing)
+add_test(NAME test_binary_tree COMMAND $<TARGET_FILE:test_binary_tree> --concise)
+set_property(TEST test_binary_tree PROPERTY LABELS "tree")
+if(WIN32)
+    set_tests_properties(test_binary_tree PROPERTIES ENVIRONMENT_MODIFICATION
+        "PATH=path_list_prepend:$<TARGET_FILE_DIR:ariadne-tree>")
+endif()
+add_custom_target(tests)
+add_dependencies(tests test_binary_tree)
