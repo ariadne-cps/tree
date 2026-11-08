@@ -91,6 +91,7 @@ class BinaryTreeNode {
     //! Note that, the two leaf nodes with the same parent are removed if they have
     //! the same value of isEnabled fields.
     Void recombine_node(BinaryTreeNode * pCurrentNode);
+    static Void recombine_parallel_node(BinaryTreeNode* node, unsigned forks_remaining);
 
     //! \brief This method is used for recursive restoration of the binary tree from
     //! the used data, i.e. \a theTree and \a theEnabledCells. It is used in the
@@ -221,6 +222,13 @@ class BinaryTreeNode {
     //! \brief This method recombined the sub tree nodes. Note that, the two leaf nodes with
     //! the same parent are removed if they have the same value of isEnabled fields.
     Void recombine();
+
+    //! \brief Recombine independent subtrees with bounded fork/join tasks.
+    //! \details Uses the shared ThreadManager only when concurrency is enabled
+    //! and both child branches are nontrivial. Sequential fallback has the
+    //! same exact node-state/structure semantics as recombine().
+    //! \warning No other thread may mutate or borrow this tree during the call.
+    Void recombine_parallel();
 
     //! \brief Stores the binary tree in a form of two arrays, their structure is the same as needed for
     //! the BinaryTreeNode( const BooleanArray& , const BooleanArray&  ) constructor

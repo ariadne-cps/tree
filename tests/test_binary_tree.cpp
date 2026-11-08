@@ -32,6 +32,7 @@
 #include "foundation/logical.hpp"
 
 #include "tree/binary_tree.hpp"
+#include "threading/thread_manager.hpp"
 
 #include "ariadne-testing.hpp"
 
@@ -41,6 +42,42 @@ using namespace std;
 class TestBinaryTree : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
+
+    Void test_parallel_recombine_matches_serial() {
+        // The same irregular tree is reduced by both implementations.
+        // Avoid relying on task order: compare exact structural results.
+        BinaryTreeNode source(false);
+        for(unsigned k=0u;k<1024u;++k) {
+            if(((k*37u+13u)%23u)<10u) {
+                BinaryWord path;
+                for(unsigned b=10u;b>0u;--b)
+                    path.push_back((k&(1u<<(b-1u)))!=0u);
+                source.add_enabled(path);
+            }
+        }
+        BinaryTreeNode serial(source);
+        serial.recombine();
+        BinaryTreeNode parallel(source);
+
+        ThreadManager& manager=ThreadManager::instance();
+        size_t old_concurrency=manager.concurrency();
+        size_t desired=manager.maximum_concurrency()>=2u ? 2u : 0u;
+        manager.set_concurrency(desired);
+        try {
+            parallel.recombine_parallel();
+        } catch (...) {
+            manager.set_concurrency(old_concurrency);
+            throw;
+        }
+        manager.set_concurrency(old_concurrency);
+        ARIADNE_TESTING_PROVE(parallel==serial);
+        ARIADNE_TESTING_EXPECT_EQUAL(
+            BinaryTreeNode::count_enabled_leaf_nodes(&parallel),
+            BinaryTreeNode::count_enabled_leaf_nodes(&serial));
+        // A second recombination is idempotent.
+        parallel.recombine_parallel();
+        ARIADNE_TESTING_PROVE(parallel==serial);
+    }
 
     Void test_binary_tree() {
     const BinaryTreeNode * binary_tree_node_null_pointer = nullptr;
@@ -646,5 +683,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestBinaryTree, test_prepend_tree);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTree, test_intersect_and_subset_full_matrix);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTree, test_binary_tree);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTree, test_parallel_recombine_matches_serial);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }

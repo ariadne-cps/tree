@@ -26,6 +26,7 @@
 #include <algorithm>
 
 #include "tree/binary_tree.hpp"
+#include "threading/task_group.hpp"
 
 
 namespace Ariadne {
@@ -195,6 +196,40 @@ Void BinaryTreeNode::recombine_node(BinaryTreeNode * pCurrentNode) {
             }
         }
     }
+}
+
+Void BinaryTreeNode::recombine_parallel_node(
+        BinaryTreeNode* node,unsigned forks_remaining) {
+    if(node->is_leaf()) { return; }
+    BinaryTreeNode* left=node->_pLeftNode;
+    BinaryTreeNode* right=node->_pRightNode;
+    // Tasks own disjoint subtrees. The caller must hold its paving owner
+    // lock, and the parent is not modified until the child task joins.
+    if(forks_remaining>0u and not left->is_leaf() and not right->is_leaf()) {
+        TaskGroup<ThreadManager> tasks(ThreadManager::instance());
+        tasks.fork([right,forks_remaining] {
+            recombine_parallel_node(right,forks_remaining-1u);
+        });
+        recombine_parallel_node(left,forks_remaining-1u);
+        tasks.join();
+        if(left->is_leaf() and right->is_leaf()
+           and definitely(left->_isEnabled==right->_isEnabled))
+            node->make_leaf(left->_isEnabled);
+        return;
+    }
+    // Do not fork trivial or unbalanced branches: the existing
+    // post-order implementation retains its exact reduction semantics.
+    recombine_node(node);
+}
+
+Void BinaryTreeNode::recombine_parallel() {
+    // Fork at most the first two nontrivial levels. Nested TaskGroups
+    // share ThreadManager's work-stealing pool (no nested thread pools).
+    if(ThreadManager::instance().concurrency()<2u) {
+        recombine_node(this);
+        return;
+    }
+    recombine_parallel_node(this,2u);
 }
 
 Nat BinaryTreeNode::depth() const {
