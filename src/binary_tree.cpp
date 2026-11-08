@@ -219,7 +219,7 @@ Void BinaryTreeNode::recombine_parallel_node(
     }
     // Do not fork trivial or unbalanced branches: the existing
     // post-order implementation retains its exact reduction semantics.
-    recombine_node(node);
+    node->recombine_node(node);
 }
 
 Void BinaryTreeNode::recombine_parallel() {
