@@ -17,10 +17,10 @@ if(NOT TARGET ariadne-build)
     include("${CMAKE_CURRENT_SOURCE_DIR}/ss/bui/cmake/ProjectOptions.cmake")
 endif()
 if(EXISTS "${PROJECT_SOURCE_DIR}/.git")
-    # Child commits guarantee their own internal consistency.
-    # Keep cross-branch comparisons where the same dependency is shared.
+    # Keep consistency checks for production dependencies only.
+    # Testing is development-only and deliberately excluded.
     require_same_dependency_commit(Build CHAINS
-        "build" "foundation|build" "threading|build" "testing|build")
+        "build" "foundation|build" "threading|build")
 endif()
 setup_project()
 include_directories("${PROJECT_SOURCE_DIR}/include")
@@ -37,7 +37,7 @@ ariadne_register_public_headers(
     DIRECTORIES "${PROJECT_SOURCE_DIR}/include/tree"
     FILES "${PROJECT_SOURCE_DIR}/include/ariadne-tree.hpp")
 setup_project_library(TARGET ariadne-tree OBJECTS TREE_SRC LINK_LIBRARIES tree)
-setup_standalone_project_tests(TARGET ariadne-tree
+setup_standalone_project(TARGET ariadne-tree
     TEST_DIRECTORY tests TEST_TARGET tests
     SOURCES "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/src")
 if(BUILD_PYTHON_BINDINGS)
