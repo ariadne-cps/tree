@@ -21,8 +21,6 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/.git")
     # Keep cross-branch comparisons where the same dependency is shared.
     require_same_dependency_commit(Build CHAINS
         "build" "foundation|build" "threading|build" "testing|build")
-    require_same_dependency_commit(Testing CHAINS
-        "testing" "foundation|testing" "threading|testing")
 endif()
 setup_project()
 include_directories("${PROJECT_SOURCE_DIR}/include")
