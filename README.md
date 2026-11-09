@@ -106,41 +106,48 @@ ThreadSanitizer checks for data races during the selected tests; it does not imp
 
 ## Manual internal-parallelism benchmark
 
-The standalone `benchmark_binary_tree_parallel` executable compares
-`BinaryTreeNode::recombine()` (sequential baseline with concurrency 0)
-against `BinaryTreeNode::recombine_parallel()` with 2, 4, or 8
-configured `ThreadManager` workers. Depths 12, 14, and 16 are the
-default input sizes. A full binary tree is constructed once for each
-size, with deterministic, reducible runs of equal leaf values.
+The standalone `benchmark_binary_tree_parallel` executable uses the
+standard **`--concurrency N`** option supplied by the Ariadne Threading
+command-line component. The benchmark **never changes ThreadManager
+concurrency internally** and no longer accepts `--workers`.
 
-The benchmark uses **Ariadne Benchmarking**, specifically
-`Benchmarking::Runner` for samples/warmups and `Benchmarking::Report`
-for the table. **Cloning the input, resizing the thread pool and
-comparing every result with the independent sequential oracle are
-outside the timed operation.** Every run reports the median duration,
-speedup relative to the same-depth sequential baseline, parallel
-efficiency and `TREE_PARALLEL_RECOMBINE` machine-readable lines.
-Requested worker counts above the machine's advertised concurrency
-are skipped. A speedup is not assumed. The internal algorithm uses
-two fork levels (at most four independently reduced subtrees):
-measurements with an adaptive third level showed no improvement at depth
-16 and a substantial regression at smaller tested depths. Adding
-pool workers beyond four cannot improve the currently available fanout.
+For every selected depth it measures both `recombine()` and
+`recombine_parallel()` at the *same* configured concurrency.
+The first is an explicit sequential baseline independent of pool size.
+The second uses the internal shared-pool fork/join algorithm when
+concurrency is at least two, and a sequential fallback otherwise.
+At `--concurrency 0`, both methods are sequential, as expected.
 
-From the repository root, run manually in a Release build:
+Measurements use **Benchmarking::Runner** for warmups/samples and
+**Benchmarking::Report** for the table. Source cloning and exact
+structural verification against the sequential oracle occur outside
+the timed region. Output includes absolute median milliseconds,
+within-process speedup, parallel efficiency, and machine-readable
+`TREE_PARALLEL_RECOMBINE` rows with `method` and `concurrency`.
+The implementation is limited to two fork levels (at most four
+independent leaf-subtree partitions), based on the prior manual
+adaptive-vs-fixed comparison.
+
+Run from the repository root using a Release build:
 
 ```bash
 git pull --ff-only
 git submodule update --init --recursive
 cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_BINDINGS=OFF
 cmake --build build-release --target benchmark_binary_tree_parallel
-./build-release/benchmarks/benchmark_binary_tree_parallel \
-  --depths 12,14,16 --workers 0,2,4,8 --samples 7
+
+for concurrency in 0 2 4 8; do
+  ./build-release/benchmarks/benchmark_binary_tree_parallel \
+    --concurrency "$concurrency" --depths 12,14,16 --samples 7
+done
 ```
 
-`--warmups` and `--summary` are available through the shared
-benchmarking command line. Worker count 0 means exactly the sequential
-reference; 2, 4 and 8 are the configured pool sizes, not guaranteed
-physical-core counts. This experiment is **not registered with CTest**
-and is **never executed by a CI workflow**. Compilation as part of a
-normal `benchmarks` target is permitted.
+`--warmups` and `--summary` remain available from the shared
+Benchmarking CLI. A pool size is a configured ThreadManager value, not
+a measured number of concurrently active physical cores. For paired
+comparisons use the serial and parallel medians of the **same run**;
+do not read the superseded `--workers` sweep as the new CLI contract.
+
+This experiment is **not registered with CTest** and is **not executed
+by CI**. As before, only compilation of benchmark targets may occur
+through standard project build targets.

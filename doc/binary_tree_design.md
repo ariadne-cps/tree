@@ -194,3 +194,37 @@ measurements, not merely an extra level chosen from pool size.
 Next focus is the ROBDD internal DAG algorithm (canonical table
 synchronization and ITE branches), with its own standalone
 Benchmarking experiment before performance claims.
+
+
+## 2026-11-09 - Benchmark CLI correction: honor the caller's concurrency
+
+The first manual tree benchmark had a misleading interface: it added
+the standard `threading_command_line_contribution()` (including
+`--concurrency`), but overrode that value inside `measure()` by
+calling `ThreadManager::set_concurrency(workers)` for each item of
+the benchmark-specific `--workers` sweep. Consequently an explicitly
+provided `--concurrency` was ignored by the experiment.
+
+**Corrected protocol:** remove the redundant `--workers` argument,
+all internal pool reconfiguration and its restore guard. A single
+process now honors the standard `--concurrency` configured by
+Threading and benchmarks, for each selected depth, the sequential
+`recombine()` and `recombine_parallel()` on identical deep copies
+under that **same** runtime configuration. Input cloning and
+post-operation structural equality checks remain untimed and the
+measurement/reporting implementation remains wholly within Ariadne
+Benchmarking (`Runner`, `Statistics`, `Report`).
+The sequential reference is measured even when concurrency >0; the
+parallel implementation naturally falls back to the sequential
+algorithm when concurrency <2. Record both methods separately with
+`method` and `concurrency` machine-readable fields.
+
+An explicit 0/2/4/8 scaling sweep is now done with **four manual
+process invocations** (`--concurrency 0`, etc.). The per-run reported
+speedup is the ratio of serial and parallel medians at identical
+concurrency, reducing hidden pool changes but not implying that
+independently measured series are free from system noise. The prior
+two-series results remain historic observations from the old
+in-process sweep protocol; no new speedup is claimed without
+re-running the corrected benchmark. No CI workflow changes or
+automatic execution of performance benchmarks.
