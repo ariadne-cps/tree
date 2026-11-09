@@ -109,3 +109,44 @@ each sample and structural oracle comparisons after each sample occur
 outside the timed interval. A semantic mismatch aborts the experiment.
 Results are not yet available: neither speedup nor efficiency is assumed.
 No performance benchmark is run in CI.
+
+
+## 2026-11-09 - Measured parallel recombination and adaptive fork fanout
+
+**Operator-supplied manual Release measurements:** Ariadne Benchmarking
+`benchmark_binary_tree_parallel --depths 12,14,16 --workers 0,2,4,8
+--samples 7`. The benchmark checked exact structural equality to
+serial recombination outside every timed sample.
+
+| Input tree depth | Serial median ms | 2-worker speedup | 4-worker speedup | 8-worker speedup |
+| --- | ---: | ---: | ---: | ---: |
+| 12 | 0.238750 | 1.473x | 2.345x | 2.418x |
+| 14 | 0.704459 | 2.031x | 3.828x | 3.771x |
+| 16 | 1.953750 | 2.128x | 4.252x | 4.177x |
+
+At depth 16 the four-worker median was 0.459542 ms, a reduction
+of about 76.5% against 1.953750 ms serial. Four and eight worker
+results are nearly identical on the larger cases. This has a
+specific implementation explanation: the previous fixed two-level
+fork budget exposed at most four independent leaf-subtree jobs,
+regardless of the ThreadManager pool size. Worker counts denote
+configured pool threads, not measured concurrently active cores.
+An observed speedup beyond a worker count is a benchmark point
+estimate, not evidence of physically superlinear scaling; cache,
+scheduling, allocations and sample variability remain plausible.
+
+**Follow-up source change:** retain the previous two fork levels for
+concurrency 2-4, but adapt the recursion budget upward when the
+configured pool contains more than four workers. Every additional
+level doubles the maximum independent leaf-subtree partitions.
+Cap the budget at five levels to avoid unrestricted tiny-task
+proliferation. All tasks share ThreadManager and use TaskGroup
+fork/join; no nested pools, node locks or changed recombine
+semantics are introduced. Extend the semantic regression across
+0/2/4/8 workers where supported.
+
+This is a new *performance hypothesis*. The table above is the
+**fixed-two-level baseline**, not a measurement of adaptive fanout.
+A repeated manual experiment on the same hardware with the same
+parameters is needed to decide whether eight workers now help.
+No benchmark execution or performance threshold is added to CI.

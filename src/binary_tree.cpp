@@ -223,13 +223,23 @@ Void BinaryTreeNode::recombine_parallel_node(
 }
 
 Void BinaryTreeNode::recombine_parallel() {
-    // Fork at most the first two nontrivial levels. Nested TaskGroups
-    // share ThreadManager's work-stealing pool (no nested thread pools).
-    if(ThreadManager::instance().concurrency()<2u) {
+    // A two-level fork tree exposes only four independent subtrees.
+    // Retain that established behavior for <=4 workers, but expose
+    // additional independent subtrees when the shared pool is larger.
+    // Bound the fan-out to avoid unbounded task creation and nesting.
+    SizeType const concurrency=ThreadManager::instance().concurrency();
+    if(concurrency<2u) {
         recombine_node(this);
         return;
     }
-    recombine_parallel_node(this,2u);
+    unsigned fork_levels=2u;
+    SizeType parallel_subtrees=4u;
+    while(parallel_subtrees<concurrency and fork_levels<5u) {
+        parallel_subtrees*=2u;
+        ++fork_levels;
+    }
+    // All task groups use one shared work-stealing scheduler.
+    recombine_parallel_node(this,fork_levels);
 }
 
 Nat BinaryTreeNode::depth() const {

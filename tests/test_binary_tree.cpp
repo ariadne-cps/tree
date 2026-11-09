@@ -23,6 +23,7 @@
  */
 
 #include <iostream>
+#include <array>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -77,6 +78,28 @@ class TestBinaryTree : public Ariadne::Testing::ContextFixture {
         // A second recombination is idempotent.
         parallel.recombine_parallel();
         ARIADNE_TESTING_PROVE(parallel==serial);
+
+        // The adaptive extra levels are exercised when 4 or 8 pool
+        // workers are actually available; configurations lacking that
+        // hardware still test the exact serial fallback.
+        BinaryTreeNode reducible(true);
+        reducible.mince(10u);
+        BinaryTreeNode reference(reducible);
+        reference.recombine();
+        for(std::size_t workers:std::array<std::size_t,4>{0u,2u,4u,8u}) {
+            if(workers>manager.maximum_concurrency()) continue;
+            manager.set_concurrency(workers);
+            BinaryTreeNode candidate(reducible);
+            try {
+                candidate.recombine_parallel();
+            } catch (...) {
+                manager.set_concurrency(old_concurrency);
+                throw;
+            }
+            ARIADNE_TESTING_PROVE(candidate==reference);
+            ARIADNE_TESTING_PROVE(candidate.is_leaf());
+        }
+        manager.set_concurrency(old_concurrency);
     }
 
     Void test_binary_tree() {

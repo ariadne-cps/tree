@@ -121,7 +121,9 @@ outside the timed operation.** Every run reports the median duration,
 speedup relative to the same-depth sequential baseline, parallel
 efficiency and `TREE_PARALLEL_RECOMBINE` machine-readable lines.
 Requested worker counts above the machine's advertised concurrency
-are skipped. A speedup is not assumed.
+are skipped. A speedup is not assumed. Fork depth adapts to the configured pool:
+up to 4 worker threads use two fork levels; larger pools expose more
+independent subtrees, subject to a five-level task-generation ceiling.
 
 From the repository root, run manually in a Release build:
 
