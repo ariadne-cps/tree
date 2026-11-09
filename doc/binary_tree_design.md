@@ -228,3 +228,29 @@ two-series results remain historic observations from the old
 in-process sweep protocol; no new speedup is claimed without
 re-running the corrected benchmark. No CI workflow changes or
 automatic execution of performance benchmarks.
+
+
+## 2026-11-09 - Restore multi-value --concurrency using Benchmarking::Matrix
+
+The previously introduced one-process-per-`--concurrency` change
+needlessly removed the useful single-process 0/2/4/8 sweep. The
+original `--workers` flag was also inconsistent because it
+silently overrode the standard scalar Threading CLI setting.
+
+**Resolution:** declare `depths` and `concurrency` as explicit
+`Benchmarking::Parameter` axes and register them through
+`Benchmarking::Matrix`. The benchmark thus accepts
+`--concurrency 0,2,4,8` (also scalar and `max`) without
+registering the scalar Threading `--concurrency` parser and
+without a redundant `--workers` option. Each configuration sets
+the ThreadManager pool size **outside** `Runner`'s timed callback,
+then measures serial and parallel recombination under that exact
+same runtime configuration. Input copying, independent serial
+oracle construction and post-operation structural verification
+also remain untimed. Restore the incoming concurrency after the
+complete matrix run. Unsupported pool sizes are logged as skipped.
+
+No library algorithm changes, performance regressions/tests,
+CI workflow modifications or automated timing runs are included
+in this benchmark-interface correction. Compile and manual
+Release replay are necessary to confirm its output.

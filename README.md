@@ -106,48 +106,48 @@ ThreadSanitizer checks for data races during the selected tests; it does not imp
 
 ## Manual internal-parallelism benchmark
 
-The standalone `benchmark_binary_tree_parallel` executable uses the
-standard **`--concurrency N`** option supplied by the Ariadne Threading
-command-line component. The benchmark **never changes ThreadManager
-concurrency internally** and no longer accepts `--workers`.
+The standalone `benchmark_binary_tree_parallel` executable uses
+Ariadne **Benchmarking::Parameter** and **Benchmarking::Matrix** for
+the `--depths` and `--concurrency` axes. Both accept a scalar or
+a comma-separated list; `max` is also accepted as a concurrency
+value. The default matrix is depths 12,14,16 times concurrency
+0,2,4,8. Worker counts above the local ThreadManager maximum are
+reported as skipped, rather than silently substituted.
 
-For every selected depth it measures both `recombine()` and
-`recombine_parallel()` at the *same* configured concurrency.
-The first is an explicit sequential baseline independent of pool size.
-The second uses the internal shared-pool fork/join algorithm when
-concurrency is at least two, and a sequential fallback otherwise.
-At `--concurrency 0`, both methods are sequential, as expected.
+For **each** matrix configuration, the benchmark sets
+`ThreadManager::set_concurrency` outside the timed section, then
+measures `recombine()` (explicit sequential baseline) and
+`recombine_parallel()` (shared-pool fork/join or serial fallback)
+on identical input trees. A single run again produces the entire
+scaling table. Unlike the original `--workers` sweep, the concurrency
+values now come **directly from the framework's public benchmark
+axis**, and the existing Threading scalar `--concurrency` parser is
+not registered a second time.
 
-Measurements use **Benchmarking::Runner** for warmups/samples and
-**Benchmarking::Report** for the table. Source cloning and exact
-structural verification against the sequential oracle occur outside
-the timed region. Output includes absolute median milliseconds,
-within-process speedup, parallel efficiency, and machine-readable
-`TREE_PARALLEL_RECOMBINE` rows with `method` and `concurrency`.
-The implementation is limited to two fork levels (at most four
-independent leaf-subtree partitions), based on the prior manual
-adaptive-vs-fixed comparison.
+Measurements use `Benchmarking::Runner` for warmups/samples and
+`Benchmarking::Report` for the table. Deep source cloning, pool
+reconfiguration, and structural correctness checks against the serial
+oracle are all **outside timing**. Output includes median milliseconds,
+within-configuration speedup, efficiency and structured
+`TREE_PARALLEL_RECOMBINE` rows for serial and parallel methods.
+The algorithm uses two fork levels (up to four independent subtrees).
 
-Run from the repository root using a Release build:
+From the repository root:
 
 ```bash
 git pull --ff-only
 git submodule update --init --recursive
 cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_BINDINGS=OFF
 cmake --build build-release --target benchmark_binary_tree_parallel
-
-for concurrency in 0 2 4 8; do
-  ./build-release/benchmarks/benchmark_binary_tree_parallel \
-    --concurrency "$concurrency" --depths 12,14,16 --samples 7
-done
+./build-release/benchmarks/benchmark_binary_tree_parallel \
+  --depths 12,14,16 --concurrency 0,2,4,8 --samples 7
 ```
 
-`--warmups` and `--summary` remain available from the shared
-Benchmarking CLI. A pool size is a configured ThreadManager value, not
-a measured number of concurrently active physical cores. For paired
-comparisons use the serial and parallel medians of the **same run**;
-do not read the superseded `--workers` sweep as the new CLI contract.
+`--warmups` and `--summary` are available through Benchmarking.
+Pool sizes are configured worker counts, not measured physical
+concurrency. Each speedup compares the serial and parallel medians
+for the same depth and pool size. The historical tables were measured
+using the earlier `--workers` interface and remain for reference.
 
-This experiment is **not registered with CTest** and is **not executed
-by CI**. As before, only compilation of benchmark targets may occur
-through standard project build targets.
+**Manual only:** the executable is not registered with CTest and
+not run by CI. Normal build targets may still compile it.

@@ -32,6 +32,17 @@ struct Result {
     SizeType enabled_leaves;
 };
 
+// Reconfiguring the pool is part of the requested benchmark matrix,
+// never part of the timed operation. Restore the CLI entry state on exit.
+struct RestoreConcurrency {
+    ThreadManager& manager;
+    SizeType initial;
+    ~RestoreConcurrency() noexcept {
+        try { manager.set_concurrency(initial); }
+        catch (...) { }
+    }
+};
+
 // Create a full tree with deterministic stripes of equal leaf states.
 // Adjacent uniform regions do recombine, while the resulting tree retains
 // internal nodes; this stresses both reduction work and parent deletion.
@@ -55,8 +66,8 @@ std::unique_ptr<BinaryTreeNode> build_source(unsigned depth) {
 Result measure(unsigned depth,bool parallel,unsigned samples,
                BinaryTreeNode const& source,BinaryTreeNode const& oracle,
                Bench::Runner const& runner,double baseline_ns) {
-    // The standard --concurrency CLI option configured ThreadManager
-    // before entry. Never change that setting inside a benchmark.
+    // The Benchmarking::Matrix configuration was installed before
+    // entering this sample. Do not reconfigure the pool during timing.
     SizeType const concurrency=ThreadManager::instance().concurrency();
     std::string const method=parallel ? "parallel" : "serial";
     std::unique_ptr<BinaryTreeNode> current;
@@ -91,10 +102,10 @@ void print_report(std::vector<Result> const& results,
         "BinaryTreeNode recombination: sequential versus internal fork/join",
         cli.summary_fields());
     report.set_parameter_header(
-        "Nanoseconds per recombine; source clones and structural correctness"
-        " checks excluded from timing. Pool size is set ONLY through the"
-        " standard --concurrency option. Each run compares serial with"
-        " parallel recombine at the SAME configured pool size.");
+        "Nanoseconds per recombine; source clones, pool setup and structural"
+        " correctness checks excluded from timing. Benchmarking::Matrix"
+        " accepts --concurrency 0,2,4,8; each configuration compares"
+        " serial and parallel recombine under the same pool setting.");
     report.set_dimension_columns({
         {"Depth",0u,Bench::TableAlignment::Right},
         {"Concurrency",0u,Bench::TableAlignment::Right},
@@ -134,49 +145,73 @@ void print_report(std::vector<Result> const& results,
 int main(int argc,char const* argv[]) {
     try {
         unsigned samples=7u;
-        std::vector<unsigned> depths{12u,14u,16u};
+        ThreadManager& manager=ThreadManager::instance();
+        // Benchmarking axes, not duplicate Threading runtime CLI options:
+        // --concurrency accepts a scalar OR a comma-separated list.
+        Bench::Parameter<unsigned> depths(
+            "depths","Tree depths to measure",
+            {12u,14u,16u},
+            [](std::string const& text) {
+                unsigned const value=Bench::parse_unsigned<unsigned>(String(text));
+                if(value==0u or value>20u)
+                    throw std::invalid_argument("depth must be in 1..20");
+                return value;
+            });
+        Bench::Parameter<SizeType> concurrency(
+            "concurrency","ThreadManager worker counts (0=sequential; max=hardware)",
+            {0u,2u,4u,8u},
+            [&manager](std::string const& text) {
+                if(text=="max") return manager.maximum_concurrency();
+                return Bench::parse_unsigned<SizeType>(String(text));
+            });
+        Bench::Matrix matrix;
+        matrix.add(depths).add(concurrency);
 
         Bench::CommandLine cli;
-        ThreadManager::instance();
-        cli.add(threading_command_line_contribution());
+        cli.add_parameters(matrix);
         cli.add(CommandLineContribution("tree-parallel-recombine",{
             make_valued_argument_parser(
                 "","samples","Number of measured samples per configuration",
                 [&samples](String const& text)->VoidFunction {
                     unsigned value=Bench::parse_unsigned<unsigned>(text);
-                    if(value==0u) throw std::invalid_argument("samples must be positive");
+                    if(value==0u)
+                        throw std::invalid_argument("samples must be positive");
                     return [&samples,value] {samples=value;};
-                }),
-            make_valued_argument_parser(
-                "","depths","Comma-separated tree depths (default: 12,14,16)",
-                [&depths](String const& text)->VoidFunction {
-                    auto value=Bench::parse_unique_unsigned_list(text,1u);
-                    for(unsigned depth:value)
-                        if(depth>20u) throw std::invalid_argument("depth exceeds 20");
-                    return [&depths,value=std::move(value)] {depths=value;};
                 })
         }));
         if(not cli.acquire(argc,argv)) return 0;
 
-        // ThreadManager is controlled by the standard CLI only; a complete
-        // experiment consists of separate process invocations for each
-        // --concurrency value, never hidden pool reconfiguration here.
-        Bench::Runner runner(cli,depths.size()*2u);
+        RestoreConcurrency restore{manager,manager.concurrency()};
+        Bench::Runner runner(cli,matrix.combinations()*2u);
         std::vector<Result> results;
+        results.reserve(matrix.combinations()*2u);
 
-        for(unsigned depth:depths) {
+        matrix.for_each([&](Bench::Configuration const& configuration) {
+            unsigned const depth=configuration.value(depths);
+            SizeType const workers=configuration.value(concurrency);
+            if(workers>manager.maximum_concurrency()) {
+                LOGGING_PRINTLN("TREE_PARALLEL_RECOMBINE_SKIPPED depth="<<depth
+                    <<" concurrency="<<workers
+                    <<" maximum="<<manager.maximum_concurrency())
+                return;
+            }
+
+            // The pool change is required by the explicit matrix axis,
+            // outside Runner's timed callbacks. Same setup for both methods.
+            manager.set_concurrency(workers);
+            runner.configuration_started(configuration);
             auto source=build_source(depth);
             BinaryTreeNode oracle(*source);
             oracle.recombine();
 
-            // Both methods execute with exactly the same configured
-            // ThreadManager concurrency and on an identical source tree.
-            auto baseline=measure(depth,false,samples,*source,oracle,runner,0.0);
+            auto baseline=measure(
+                depth,false,samples,*source,oracle,runner,0.0);
             double const baseline_ns=baseline.statistics.median;
             results.push_back(std::move(baseline));
             results.push_back(measure(
                 depth,true,samples,*source,oracle,runner,baseline_ns));
-        }
+            runner.configuration_completed(configuration);
+        });
         print_report(results,cli);
         return 0;
     } catch(std::exception const& error) {
