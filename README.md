@@ -121,9 +121,11 @@ outside the timed operation.** Every run reports the median duration,
 speedup relative to the same-depth sequential baseline, parallel
 efficiency and `TREE_PARALLEL_RECOMBINE` machine-readable lines.
 Requested worker counts above the machine's advertised concurrency
-are skipped. A speedup is not assumed. Fork depth adapts to the configured pool:
-up to 4 worker threads use two fork levels; larger pools expose more
-independent subtrees, subject to a five-level task-generation ceiling.
+are skipped. A speedup is not assumed. The internal algorithm uses
+two fork levels (at most four independently reduced subtrees):
+measurements with an adaptive third level showed no improvement at depth
+16 and a substantial regression at smaller tested depths. Adding
+pool workers beyond four cannot improve the currently available fanout.
 
 From the repository root, run manually in a Release build:
 

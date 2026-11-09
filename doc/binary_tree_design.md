@@ -150,3 +150,47 @@ This is a new *performance hypothesis*. The table above is the
 A repeated manual experiment on the same hardware with the same
 parameters is needed to decide whether eight workers now help.
 No benchmark execution or performance threshold is added to CI.
+
+
+## 2026-11-09 - Measured adaptive fork fanout: revert to two levels
+
+**Second operator-run manual benchmark**, same deterministic input
+family, depths 12/14/16, 7 measured samples, workers 0/2/4/8.
+Every timed operation was followed by structural verification against
+the same sequential reference. Absolute median milliseconds:
+
+| Depth | Workers | Fixed 2-level fork | Adaptive fork | Adaptive versus fixed |
+| --- | ---: | ---: | ---: | ---: |
+| 12 | 0 | 0.238750 | 0.238209 | -0.2% |
+| 12 | 2 | 0.162042 | 0.170708 | +5.3% |
+| 12 | 4 | 0.101791 | 0.130708 | +28.4% |
+| 12 | 8 | 0.098750 | 0.161333 | +63.4% |
+| 14 | 0 | 0.704459 | 0.700333 | -0.6% |
+| 14 | 2 | 0.346792 | 0.347709 | +0.3% |
+| 14 | 4 | 0.184042 | 0.180584 | -1.9% |
+| 14 | 8 | 0.186792 | 0.243916 | +30.6% |
+| 16 | 0 | 1.953750 | 1.863125 | -4.6% |
+| 16 | 2 | 0.918083 | 0.889458 | -3.1% |
+| 16 | 4 | 0.459542 | 0.593875 | +29.2% |
+| 16 | 8 | 0.467792 | 0.466292 | -0.3% |
+
+At concurrency 8, the adaptive code exposed eight leaf-subtree
+partitions instead of four. There was no meaningful depth-16 gain;
+the depth-12 and depth-14 measurements regressed by approximately
+63% and 31% respectively. This is consistent with excess fork/join
+overhead for too-small tasks. **It does not demonstrate that the
+fork budget caused all observed differences:** notably, the 4-worker
+implementation followed the same two-level branch in both versions,
+yet depth-16 timings differed by 29%, evidence of cross-run noise,
+runtime scheduling variation, or another uncontrolled difference.
+
+**Decision:** restore the previously measured, simpler two-level
+fork budget for every concurrency >=2; preserve the extended
+multiworker structural regression and manual Benchmarking executable.
+Do not add automated performance thresholds or run the benchmark in
+CI. A further 8-way variant would require substantially larger
+inputs and an adaptive work threshold justified by repeated
+measurements, not merely an extra level chosen from pool size.
+Next focus is the ROBDD internal DAG algorithm (canonical table
+synchronization and ITE branches), with its own standalone
+Benchmarking experiment before performance claims.
