@@ -23,7 +23,7 @@ Although independently maintained and usable, this repository is also part of th
 - Installed-library C++ and Python tutorials.
 - Ubuntu, macOS, Windows, sanitizer and coverage CI.
 
-`BinaryTreeNode` is intentionally a **sequential building block**, not a synchronized container, even though the Tree module now directly depends on Threading. Its child accessors return borrowed pointers, which can become invalid after mutations. Synchronization and parallel subtree processing belong to owning structures or higher-level algorithms; a mutex is not added to each node.
+`BinaryTreeNode` is **not a synchronized container**. Its child accessors return borrowed pointers, which can become invalid after mutations. Alongside sequential `recombine()`, it offers bounded internal subtree parallelism through `recombine_parallel()` using the shared `ThreadManager`; callers must prevent concurrent access to the same tree while this operation runs. No mutex is added to individual nodes.
 
 The planned n-ary tree for hybrid-evolution trajectory dependencies is **not implemented**. It will be designed as a separate abstraction rather than imposed on `BinaryTreeNode`.
 
@@ -32,6 +32,7 @@ The planned n-ary tree for hybrid-evolution trajectory dependencies is **not imp
 - `include/tree/`: public C++ headers; `include/ariadne-tree.hpp` is the umbrella header.
 - `src/`: C++ implementations.
 - `tests/`: independent C++ regression tests.
+- `benchmarks/`: opt-in, standalone performance experiments using Ariadne Benchmarking.
 - `python/bindings/`, `python/tests/`: optional Python extension and pytest tests.
 - `tutorial/`: standalone C++ and Python examples using an installed Tree module.
 - `doc/binary_tree_design.md`: semantics, ownership, invariants, limitations and extraction contract.
@@ -45,6 +46,7 @@ The repository contains these direct Git submodules (pinned consistently with th
 - `ss/fou` -> [ariadne-cps/foundation](https://github.com/ariadne-cps/foundation), logical types including `ValidatedKleenean`.
 - `ss/thr` -> [ariadne-cps/threading](https://github.com/ariadne-cps/threading), shared threading and task-execution infrastructure for future concurrent tree owners and parallel algorithms.
 - `ss/tst` -> [ariadne-cps/testing](https://github.com/ariadne-cps/testing), standalone C++ testing.
+- `ss/bmk` -> [ariadne-cps/benchmarking](https://github.com/ariadne-cps/benchmarking), development-only benchmarking tools (not linked into the production Tree library).
 
 [Utility](https://github.com/ariadne-cps/utility), which provides `BinaryWord`, is reached transitively through Foundation. Python bindings use the Python Common and pybind11 infrastructure supplied by the Foundation dependency chain.
 
@@ -101,3 +103,40 @@ ctest --test-dir build-tsan --output-on-failure
 ```
 
 ThreadSanitizer checks for data races during the selected tests; it does not imply that concurrent mutation of `BinaryTreeNode` is supported.
+
+## Manual internal-parallelism benchmark
+
+The standalone `benchmark_binary_tree_parallel` executable compares
+`BinaryTreeNode::recombine()` (sequential baseline with concurrency 0)
+against `BinaryTreeNode::recombine_parallel()` with 2, 4, or 8
+configured `ThreadManager` workers. Depths 12, 14, and 16 are the
+default input sizes. A full binary tree is constructed once for each
+size, with deterministic, reducible runs of equal leaf values.
+
+The benchmark uses **Ariadne Benchmarking**, specifically
+`Benchmarking::Runner` for samples/warmups and `Benchmarking::Report`
+for the table. **Cloning the input, resizing the thread pool and
+comparing every result with the independent sequential oracle are
+outside the timed operation.** Every run reports the median duration,
+speedup relative to the same-depth sequential baseline, parallel
+efficiency and `TREE_PARALLEL_RECOMBINE` machine-readable lines.
+Requested worker counts above the machine's advertised concurrency
+are skipped. A speedup is not assumed.
+
+From the repository root, run manually in a Release build:
+
+```bash
+git pull --ff-only
+git submodule update --init --recursive
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_BINDINGS=OFF
+cmake --build build-release --target benchmark_binary_tree_parallel
+./build-release/benchmarks/benchmark_binary_tree_parallel \
+  --depths 12,14,16 --workers 0,2,4,8 --samples 7
+```
+
+`--warmups` and `--summary` are available through the shared
+benchmarking command line. Worker count 0 means exactly the sequential
+reference; 2, 4 and 8 are the configured pool sizes, not guaranteed
+physical-core counts. This experiment is **not registered with CTest**
+and is **never executed by a CI workflow**. Compilation as part of a
+normal `benchmarks` target is permitted.

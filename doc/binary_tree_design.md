@@ -91,3 +91,21 @@ create an independent execution or synchronization framework. This dependency
 does **not** make `BinaryTreeNode` thread-safe: the existing node, ownership,
 and borrowed-pointer semantics remain unchanged. Any concurrency contract must
 be provided and tested by the container or algorithm using the nodes.
+
+## 2026-11-09 - Opt-in internal recombination benchmark
+
+The bounded `BinaryTreeNode::recombine_parallel()` operation is measured
+by `benchmark_binary_tree_parallel` in standalone Tree builds. Tree pins
+a new, development-only `ss/bmk` Benchmarking submodule compatible with
+the same Build revision. Benchmarking is **not** linked into the installed
+production library.
+
+The manual benchmark compares identical deterministic, deeply minc-ed
+source trees reduced by either the original serial `recombine()` or
+bounded fork/join with shared `ThreadManager` concurrency 2, 4, 8.
+Each configuration samples with `Benchmarking::Runner`; `Report`
+shows absolute medians, speedup and efficiency. The deep copy before
+each sample and structural oracle comparisons after each sample occur
+outside the timed interval. A semantic mismatch aborts the experiment.
+Results are not yet available: neither speedup nor efficiency is assumed.
+No performance benchmark is run in CI.
