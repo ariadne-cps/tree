@@ -63,7 +63,18 @@ jobs:
 
     - name: Build
       working-directory: ${{ runner.workspace }}/build
-      run: cmake --build . --parallel --target everything
+      if: matrix.build_type == 'Release'
+      run: cmake --build . --parallel --target ariadne-tree bindings
+
+    - name: Build Release benchmarks
+      if: matrix.build_type == 'Release'
+      working-directory: ${{ runner.workspace }}/build
+      run: cmake --build . --parallel --target benchmarks
+
+    - name: Build Debug tests and bindings
+      if: matrix.build_type == 'Debug'
+      working-directory: ${{ runner.workspace }}/build
+      run: cmake --build . --parallel --target tests bindings
 
     - name: Test C++
       if: matrix.build_type == 'Debug'
