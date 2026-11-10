@@ -19,4 +19,7 @@ endif()
 require_same_dependency_commit(Build CHAINS
     "build" "foundation|build" "threading|build")
 
+require_same_dependency_commit(Logging CHAINS
+    "threading|logging" "benchmarking|logging")
+
 ariadne_setup_module(tree)
