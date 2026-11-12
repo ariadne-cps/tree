@@ -197,14 +197,14 @@ class DerivationTree {
         // Reserve geometrically before constructing a node, so publishing its
         // trivial ID cannot throw. Never reserve size()+1 on every insertion.
         if (children.size() == children.capacity()) {
-            const auto capacity = children.capacity();
-            const auto maximum = children.max_size();
-            if (capacity == maximum) {
+            const auto child_capacity = children.capacity();
+            const auto child_limit = children.max_size();
+            if (child_capacity == child_limit) {
                 throw std::length_error("Too many DerivationTree children");
             }
-            children.reserve(capacity == 0            ? 1
-                             : capacity > maximum / 2 ? maximum
-                                                      : capacity * 2);
+            children.reserve(child_capacity == 0                ? 1
+                             : child_capacity > child_limit / 2 ? child_limit
+                                                                : child_capacity * 2);
         }
         const auto child = _id(_nodes.size());
         _nodes.emplace_back(parent._index, std::forward<O>(object),
