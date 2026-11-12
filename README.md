@@ -35,8 +35,9 @@ The generic container does not interpret those fields or schedule evolution.
 The header-only implementation has checked, tree-qualified node IDs, stable
 object/metadata references across insertion, ordered child views, and iterative
 ancestor/descendant queries. It supports move-only payloads and tree moves.
-Recombination, removal and reparenting are future work. See the
-[DerivationTree contract](doc/derivationtree_design.md) for API, complexity,
+Pruning/regrowth and recombination are future work; inserting intermediate nodes
+or moving existing subtrees is outside the model. See the
+[DerivationTree contract](doc/derivation_tree_design.md) for API, complexity,
 lifetime and exception guarantees.
 
 ## Layout
@@ -48,7 +49,7 @@ lifetime and exception guarantees.
 - `python/bindings/`, `python/tests/`: optional Python extension and pytest tests.
 - `tutorial/`: standalone C++ and Python examples using an installed Tree module.
 - `doc/binary_tree_design.md`: semantics, ownership, invariants, limitations and extraction contract.
-- `doc/derivationtree_design.md`: generic object genealogy, API and storage contract.
+- `doc/derivation_tree_design.md`: generic object genealogy, API and storage contract.
 - `.github/workflows/`: platform, sanitizers and code-coverage checks.
 
 ## Dependencies

@@ -42,15 +42,22 @@ namespace Ariadne {
 //! \brief The binary-tree node operation is not allowed on a non-leaf node.
 class NotALeafNodeException : public std::logic_error {
   public:
+    /** @brief Describe an operation that required a leaf node.
+     * @param str Diagnostic message identifying the failed operation.
+     */
     NotALeafNodeException(const StringType& str) : std::logic_error(str) {}
 };
 
 //! \brief The binary-tree node operation is not allowed on a leaf node.
 class IsALeafNodeException : public std::logic_error {
   public:
+    /** @brief Describe an operation that required an internal node.
+     * @param str Diagnostic message identifying the failed operation.
+     */
     IsALeafNodeException(const StringType& str) : std::logic_error(str) {}
 };
 
+/** @brief Boolean sequence used to serialize tree shape and leaf membership. */
 typedef std::vector<Bool> BooleanArray;
 
 //***************************************BinaryTreeNode************************************/
@@ -81,6 +88,7 @@ class BinaryTreeNode {
      * i.e. the node can be a leaf.
      */
     BinaryTreeNode* _pLeftNode;
+    /** @brief Owned right subtree; null exactly when the left subtree is null. */
     BinaryTreeNode* _pRightNode;
 
     //! \brief This method splits the enabled subtrees of the tree rooted to
@@ -132,6 +140,9 @@ class BinaryTreeNode {
 
     //!@}
 
+    /** @brief Destroy this node and recursively release its owned subtrees.
+     * @note All pointers borrowed from this subtree become invalid.
+     */
     ~BinaryTreeNode();
 
     //!@{
@@ -184,9 +195,8 @@ class BinaryTreeNode {
     //!@{
     //! \name Leaf Operations
 
-    //! \brief This method makes the node to become a leaf node with the enabled value : \a is_enabled
-    //! NOTE: the leat and the right sub-trees (are deallocated.
-    //! WARNING: this method MUST NOT be called on a non-leaf node!!!
+    //! \brief Replace this subtree by a leaf carrying \a is_enabled.
+    //! Existing child subtrees are deallocated, invalidating their borrowed pointers.
     Void make_leaf(ValidatedKleenean is_enabled);
 
     //! \brief Marks the leaf node as enabled, otherwise they through \a NotALeafNodeEsception

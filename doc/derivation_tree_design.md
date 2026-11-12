@@ -1,8 +1,8 @@
 # DerivationTree design and initial implementation
 
 Status: the initial generic structure is implemented in
-`include/tree/derivation_tree.hpp`. Recombination and historical editing remain
-future design work. The domain-specific Evolution wrapper is not implemented.
+`include/tree/derivation_tree.hpp`. Pruning/regrowth and recombination remain
+future implementation work. The domain-specific Evolution wrapper is not implemented.
 
 ## Starting requirements and boundary
 
@@ -41,8 +41,8 @@ the parent object that produced it, and whether processing of the node is
 complete. These fields need no hybrid meaning in generic Tree.
 
 Node identity is stable, allocated independently of path, depth, sibling index
-and memory address. IDs are not reused after removal or invalidation. Foreign-
-tree IDs are rejected. The owner controls lifetimes; parent and child links are
+and memory address. IDs are never reused; future pruning must preserve this
+rule. Foreign-tree IDs are rejected. The owner controls lifetimes; parent and child links are
 non-owning identifiers. Storage growth must not invalidate IDs.
 
 ## Object progression and genealogy
@@ -147,23 +147,68 @@ although a children view can be invalidated as described above. The tree does
 not roll back moves or arbitrary side effects made by a user-supplied payload
 constructor on its input arguments.
 
-## Later capabilities
+## Structural model: growth, pruning and regrowth
 
-The earlier checkpoint-per-node and mandatory multi-input-graph proposals are
-superseded as the starting abstraction. Recombination, historical insertion,
-backtracking, numerical alternatives, persistence and concurrent mutation are
-subsequent design work.
+Only two forms of structural change are allowed:
 
-Future recombination may need additional provenance links beyond a single
-genealogical parent. The current tree alone does not describe a multi-parent
-merge. Absorbed objects cannot be discarded before their contribution and
-replacement are recorded. Those requirements do not force a multi-input
-transaction API into the initial generic implementation.
+1. Grow the tree by adding new child nodes to an existing node.
+2. Prune an unwanted branch or future continuation, then allow fresh growth from
+   the retained pruning boundary.
 
-Stable node IDs allow later editing without renumbering unaffected nodes. They
-do not prove that objects computed before an edit remain valid. An application
-referencing a position within an object must define how that reference behaves
-if entries are inserted or invalidated.
+Inserting a node between existing nodes and moving/reparenting an existing
+subtree are not options, including for backtracking. Existing nodes are not
+relocated in the genealogy. Moving the owning C++ container transfers ownership
+without changing that genealogy and is a separate operation.
+
+The current implementation supports growth. **Pruning is the missing generic
+operation needed to complete this structural model.** Stable IDs alone do not
+provide pruning or backtracking.
+
+### Pruning contract to settle before implementation
+
+- Define exactly which nodes are removed and which checkpoint is retained for
+  regrowth. Pruning a child subtree and pruning all descendants of a node are
+  different boundaries; an API must state which it performs.
+- Remove pruned nodes from active genealogy and reject their IDs on lookup.
+- Never reuse IDs issued to removed nodes when the tree regrows.
+- Preserve identities and payload references for retained nodes. End the borrowed
+  reference/view lifetime of removed nodes and document affected children views.
+- Permit adding new children at the retained boundary after pruning.
+- Define storage reclamation without shifting retained nodes: erasing a middle
+  range from the current deque is not a suitable shortcut for these guarantees.
+
+A payload may itself contain a trajectory history. Truncating that history and
+invalidating children derived from removed entries are consumer responsibilities
+that must be coordinated with structural pruning. Tree does not infer that
+relationship from arbitrary Object or Metadata types.
+
+### Current coverage and remaining work
+
+| Capability | Current support | Next decision |
+| --- | --- | --- |
+| Store and continue a trajectory after producing children | Mutable object/metadata access | Already supported |
+| Mark local completion or logical retirement | Consumer metadata can carry the status | Active-versus-historical selection belongs to Evolution |
+| Inspect genealogy | Parent, ordered children and materialized ancestor/descendant lists | Allocation-free visitors/ranges are an optional later optimization |
+| Prune and regrow | Not implemented | Define retained boundary, stale-ID rejection and reference/storage guarantees |
+| Recombine selected sibling trajectories | Source groups can be inspected | Record provenance and create replacements; prune or retire superseded branches without moving them |
+| Clone or persist a tree | Copy disabled; no serialization | Optional independent ownership/identity mappings if later needed |
+
+For recombination, replacements are newly created trajectories, rather than
+existing nodes grafted elsewhere. Preserve the contribution of removed sources
+in metadata or a separate provenance record before pruning them. The ordinary
+one-parent genealogy does not itself encode a mathematical multi-source union,
+and historical source IDs must not be assumed to remain dereferenceable after
+pruning.
+
+Completion criteria, hybrid-time compatibility, overlap/coverage tests and
+scheduling priorities remain domain policies. They require neither a third
+template parameter nor a built-in hybrid operation enum. Persistence and
+concurrent mutation are not prerequisites for the initial workflow.
+
+Planned pruning tests must cover removal of exactly the requested branch,
+retained-node identity/reference stability, stale-handle rejection, regrowth
+with fresh IDs, and pruning at root/leaf boundaries. They are future tests;
+there is no pruning API in the current header.
 
 ## Verification
 

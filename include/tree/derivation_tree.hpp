@@ -44,33 +44,56 @@
 
 namespace Ariadne {
 
-/** @brief An opaque, tree-qualified node identifier. Default construction is
- * invalid. */
+/** @brief An opaque identifier scoped to its owning derivation tree.
+ *
+ * Equality compares both the ownership token and the node index. Default
+ * construction creates an invalid identifier. Copying an identifier does not
+ * extend the lifetime of its tree. Tree moves transfer ownership of its IDs.
+ * @see DerivationTree::contains
+ */
 class DerivationTreeNodeId {
     template<class Object, class Metadata>
     friend class DerivationTree;
 
-    std::uint64_t _owner = 0;
-    std::size_t _index = 0;
+    std::uint64_t _owner = 0; ///< Non-recycled ownership token; zero denotes an invalid ID.
+    std::size_t _index = 0;   ///< Position in the owning tree's append-only storage.
 
+    /** @brief Construct an identifier for an internal storage position.
+     * @param owner Ownership token allocated to the tree.
+     * @param index Existing or about-to-be-published node position.
+     */
     DerivationTreeNodeId(std::uint64_t owner, std::size_t index) noexcept
         : _owner(owner), _index(index) {}
 
   public:
+    /** @brief Construct an invalid identifier rejected by tree containment checks. */
     DerivationTreeNodeId() noexcept = default;
 
+    /** @brief Compare the owner and index, including for invalid identifiers.
+     * @return True if both identifiers name the same position in the same owner.
+     */
     friend bool operator==(DerivationTreeNodeId,
                            DerivationTreeNodeId) noexcept = default;
 
+    /** @brief Write a diagnostic owner:index representation.
+     * @param os Destination stream.
+     * @param id Identifier to print, valid or invalid.
+     * @return The destination stream.
+     * @note The representation is process-local, not a persistence format.
+     */
     friend std::ostream &operator<<(std::ostream &os, DerivationTreeNodeId id) {
         return os << id._owner << ':' << id._index;
     }
 };
 
+/** @brief Internal support for derivation-tree ownership. */
 namespace detail {
 
-// Shared by all instantiations. Only owner allocation is synchronized; trees
-// are sequential.
+/** @brief Allocate an ownership token shared across template instantiations.
+ * @return A nonzero token that has not previously been issued.
+ * @throws std::overflow_error If the ownership-token space is exhausted.
+ * @note Token allocation is thread-safe; operations on a tree are sequential.
+ */
 inline std::uint64_t next_derivation_tree_owner() {
     static std::atomic<std::uint64_t> next{1};
     auto owner = next.load(std::memory_order_relaxed);
@@ -88,6 +111,8 @@ inline std::uint64_t next_derivation_tree_owner() {
 } // namespace detail
 
 /** @brief A sequential n-ary genealogy with mutable objects and metadata.
+ * @tparam Object Application-defined object stored in each node.
+ * @tparam Metadata Application-defined node metadata, including any completion state.
  *
  * Nodes live in a deque: growth never moves an existing object or metadata.
  * IDs are tree-qualified indices, checked in constant time. Children retain
@@ -96,36 +121,59 @@ inline std::uint64_t next_derivation_tree_owner() {
  * Object/metadata references survive insertion and tree moves. Children spans
  * may be invalidated by an attempted insertion under that parent, including
  * one whose object construction throws. All borrowed views/references expire
- * when their owning nodes are destroyed. Copying, removal and reparenting are
- * deliberately unsupported. Operations must not be called reentrantly from
+ * when their owning nodes are destroyed. Structural mutation currently supports
+ * growth only; pruning with subsequent regrowth is planned. Inserting intermediate
+ * nodes and reparenting existing nodes are outside the model. Copying is disabled.
+ * Operations must not be called reentrantly from
  * payload constructors and require external synchronization for shared access.
  */
 template<class Object, class Metadata>
 class DerivationTree {
   public:
+    /** @brief Stable, opaque handle to a node owned by this tree. */
     using NodeId = DerivationTreeNodeId;
+    /** @brief Unsigned node-count and storage-index type. */
     using size_type = std::size_t;
 
   private:
+    /** @brief Internal sentinel used for the root's absent parent. */
     static constexpr size_type no_parent = std::numeric_limits<size_type>::max();
 
+    /** @brief Owned payload and non-owning genealogical links for one node. */
     struct Node {
-        size_type parent;
-        Object object;
-        Metadata metadata;
-        std::vector<NodeId> children;
+        size_type parent;             ///< Parent index, or no_parent for the root.
+        Object object;                ///< Mutable application payload.
+        Metadata metadata;            ///< Mutable application metadata.
+        std::vector<NodeId> children; ///< Child identifiers in insertion order.
 
+        /** @brief Construct payloads directly in their stable storage location.
+         * @tparam O Forwarded object argument type.
+         * @tparam M Forwarded metadata argument type.
+         * @param parent_index Parent storage index, or no_parent.
+         * @param value Argument forwarded to the Object constructor.
+         * @param data Argument forwarded to the Metadata constructor.
+         * @note Exceptions thrown by payload constructors propagate to the caller.
+         */
         template<class O, class M>
         Node(size_type parent_index, O &&value, M &&data)
             : parent(parent_index), object(std::forward<O>(value)),
               metadata(std::forward<M>(data)) {}
     };
 
-    std::uint64_t _owner = detail::next_derivation_tree_owner();
-    std::deque<Node> _nodes;
+    std::uint64_t _owner = detail::next_derivation_tree_owner(); ///< Current tree ownership token.
+    std::deque<Node> _nodes;                                     ///< Flat ownership with stable payload addresses during growth.
 
+    /** @brief Build an internal handle without checking whether the node exists.
+     * @param index Existing or about-to-be-published storage position.
+     * @return A handle qualified with this tree's ownership token.
+     */
     NodeId _id(size_type index) const noexcept { return NodeId(_owner, index); }
 
+    /** @brief Validate an identifier and access its node for reading.
+     * @param id Identifier to resolve.
+     * @return The corresponding internal node.
+     * @throws std::out_of_range If id is invalid or belongs to another owner.
+     */
     const Node &_node(NodeId id) const {
         if (!contains(id)) {
             throw std::out_of_range(
@@ -134,26 +182,53 @@ class DerivationTree {
         return _nodes[id._index];
     }
 
+    /** @brief Validate an identifier and access its mutable node.
+     * @param id Identifier to resolve.
+     * @return The corresponding internal node.
+     * @throws std::out_of_range If id is invalid or belongs to another owner.
+     */
     Node &_node(NodeId id) {
         return const_cast<Node &>(std::as_const(*this)._node(id));
     }
 
+    /** @brief Exchange storage and ownership tokens without moving payloads.
+     * @param other Tree whose storage and identity are exchanged with this tree.
+     */
     void _swap(DerivationTree &other) noexcept {
         std::swap(_owner, other._owner);
         _nodes.swap(other._nodes);
     }
 
   public:
+    /** @brief Construct an empty tree with an independent ownership token.
+     * @throws std::overflow_error If ownership tokens are exhausted.
+     * @throws std::bad_alloc If allocating empty storage fails.
+     */
     DerivationTree() = default;
+    /** @brief Copy construction is disabled to avoid duplicating node identities. */
     DerivationTree(const DerivationTree &) = delete;
+    /** @brief Copy assignment is disabled to avoid duplicating node identities. */
     DerivationTree &operator=(const DerivationTree &) = delete;
 
-    /** @brief Transfer nodes and IDs; the source becomes an empty, independent
-     * tree. */
+    /** @brief Transfer nodes and IDs, leaving an empty independent source.
+     * @param other Tree from which ownership is transferred.
+     * @throws std::overflow_error If the replacement ownership token is exhausted.
+     * @throws std::bad_alloc If allocating replacement empty storage fails.
+     * @note Existing payload references and IDs now refer to this tree. Failure
+     * to construct replacement storage leaves other unchanged.
+     */
     DerivationTree(DerivationTree &&other) : DerivationTree() { _swap(other); }
 
-    /** @brief Transfer nodes and IDs, invalidating the previous destination's IDs
-     * and references. */
+    /** @brief Replace this tree by transferring another tree's nodes and IDs.
+     * @param other Tree from which ownership is transferred.
+     * @return This tree after assignment.
+     * @throws std::overflow_error If the replacement ownership token is exhausted.
+     * @throws std::bad_alloc If allocating replacement empty storage fails.
+     * @note Old destination references and IDs are invalidated. Source references
+     * remain valid and its IDs belong to this tree. Self-move has no effect;
+     * allocation failure leaves both trees unchanged. Cost includes destruction
+     * of the old destination's payloads.
+     */
     DerivationTree &operator=(DerivationTree &&other) {
         if (this != &other) {
             DerivationTree replacement(std::move(other));
@@ -162,18 +237,41 @@ class DerivationTree {
         return *this;
     }
 
+    /** @brief Test whether this tree has no root or nodes.
+     * @return True exactly when size() is zero. Runs in O(1).
+     */
     bool empty() const noexcept { return _nodes.empty(); }
+    /** @brief Return the number of stored nodes in O(1).
+     * @return Node count, including the root if present.
+     */
     size_type size() const noexcept { return _nodes.size(); }
 
+    /** @brief Test in O(1) whether an identifier currently belongs to this tree.
+     * @param id Any identifier, including default, foreign or expired IDs.
+     * @return True if both the owner and stored index are valid here.
+     */
     bool contains(NodeId id) const noexcept {
         return id._owner == _owner && id._index < _nodes.size();
     }
 
+    /** @brief Access the root's identifier in O(1).
+     * @return The root ID, or std::nullopt for an empty tree.
+     */
     std::optional<NodeId> root() const noexcept {
         return empty() ? std::nullopt : std::optional<NodeId>(_id(0));
     }
 
-    /** @brief Create the only root; duplicate creation throws std::logic_error.
+    /** @brief Construct the only root from forwarded payload arguments.
+     * @tparam O Forwarded object argument type.
+     * @tparam M Forwarded metadata argument type.
+     * @param object Argument used to construct the root's Object.
+     * @param metadata Argument used to construct the root's Metadata.
+     * @return The new root's identifier.
+     * @throws std::logic_error If a root already exists.
+     * @throws std::bad_alloc If node allocation fails.
+     * @note Exceptions thrown by payload constructors propagate to the caller.
+     * @note Failure leaves the logical tree unchanged; it does not undo side effects on
+     * forwarded arguments. Runs in O(1), excluding payload construction.
      */
     template<class O, class M>
         requires std::constructible_from<Object, O &&> &&
@@ -187,8 +285,22 @@ class DerivationTree {
         return _id(0);
     }
 
-    /** @brief Append a child without consuming its parent; failed construction
-     * adds no node. */
+    /** @brief Append an ordered child while retaining the parent and its payload.
+     * @tparam O Forwarded object argument type.
+     * @tparam M Forwarded metadata argument type.
+     * @param parent Identifier of the new child's parent.
+     * @param object Argument used to construct the child's Object.
+     * @param metadata Argument used to construct the child's Metadata.
+     * @return The new child's stable identifier.
+     * @throws std::out_of_range If parent is invalid or foreign.
+     * @throws std::length_error If child or node storage cannot grow further.
+     * @throws std::bad_alloc If storage allocation fails.
+     * @note Exceptions thrown by payload constructors propagate to the caller.
+     * @note Runs in amortized O(1), excluding payload construction. Existing
+     * object/metadata references remain valid. Failure preserves the logical
+     * tree but can invalidate this parent's children spans through reservation.
+     * Side effects on forwarded arguments are not rolled back.
+     */
     template<class O, class M>
         requires std::constructible_from<Object, O &&> &&
                  std::constructible_from<Metadata, M &&>
@@ -213,24 +325,60 @@ class DerivationTree {
         return child;
     }
 
+    /** @brief Access a mutable application object in O(1).
+     * @param id Identifier of the object to access.
+     * @return A borrowed reference stable across node insertion and tree moves.
+     * @throws std::out_of_range If id is invalid or foreign.
+     */
     Object &object(NodeId id) { return _node(id).object; }
+    /** @brief Access an application object for reading in O(1).
+     * @param id Identifier of the object to access.
+     * @return A borrowed const reference stable across insertion and tree moves.
+     * @throws std::out_of_range If id is invalid or foreign.
+     */
     const Object &object(NodeId id) const { return _node(id).object; }
+    /** @brief Access mutable application metadata in O(1).
+     * @param id Identifier of the metadata to access.
+     * @return A borrowed reference stable across node insertion and tree moves.
+     * @throws std::out_of_range If id is invalid or foreign.
+     */
     Metadata &metadata(NodeId id) { return _node(id).metadata; }
+    /** @brief Access application metadata for reading in O(1).
+     * @param id Identifier of the metadata to access.
+     * @return A borrowed const reference stable across insertion and tree moves.
+     * @throws std::out_of_range If id is invalid or foreign.
+     */
     const Metadata &metadata(NodeId id) const { return _node(id).metadata; }
 
+    /** @brief Access a node's immediate parent in O(1).
+     * @param id Identifier of the child, or of the root.
+     * @return The parent's ID, or std::nullopt for the root.
+     * @throws std::out_of_range If id is invalid or foreign.
+     */
     std::optional<NodeId> parent(NodeId id) const {
         const auto index = _node(id).parent;
         return index == no_parent ? std::nullopt
                                   : std::optional<NodeId>(_id(index));
     }
 
-    /** @brief Borrow the ordered child IDs; topology cannot be mutated through
-     * this view. */
+    /** @brief Borrow a read-only view of child IDs in insertion order in O(1).
+     * @param id Identifier of the parent.
+     * @return A possibly empty span that does not own its storage.
+     * @throws std::out_of_range If id is invalid or foreign.
+     * @note Reacquire the view after attempted insertion under this parent,
+     * including insertion that throws. The view does not permit topology edits.
+     */
     std::span<const NodeId> children(NodeId id) const {
         return _node(id).children;
     }
 
-    /** @brief Return strict ancestors, starting with the immediate parent. */
+    /** @brief Collect strict ancestors, starting with the immediate parent.
+     * @param id Identifier of the node whose ancestry is requested.
+     * @return Ancestor IDs ordered from parent to root; empty for the root.
+     * @throws std::out_of_range If id is invalid or foreign.
+     * @throws std::bad_alloc If result allocation fails.
+     * @note Uses O(depth) time and result storage, with no recursive calls.
+     */
     std::vector<NodeId> ancestors(NodeId id) const {
         std::vector<NodeId> result;
         auto index = _node(id).parent;
@@ -241,8 +389,14 @@ class DerivationTree {
         return result;
     }
 
-    /** @brief Return strict descendants in insertion-ordered depth-first
-     * preorder. */
+    /** @brief Collect strict descendants in insertion-ordered depth-first preorder.
+     * @param id Identifier of the node whose descendants are requested.
+     * @return Descendant IDs, excluding id itself; empty for a leaf.
+     * @throws std::out_of_range If id is invalid or foreign.
+     * @throws std::bad_alloc If traversal or result allocation fails.
+     * @note Time and auxiliary/result storage are O(visited nodes). Traversal
+     * is iterative and does not consume call-stack space proportional to depth.
+     */
     std::vector<NodeId> descendants(NodeId id) const {
         const auto &first = _node(id).children;
         std::vector<NodeId> pending(first.rbegin(), first.rend());
