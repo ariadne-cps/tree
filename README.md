@@ -79,21 +79,6 @@ Python 3.11 or newer with development headers is used when `BUILD_PYTHON_BINDING
 
 Python tests use pytest. Configure with `-DPYTHON_ENFORCE_TESTS=ON` to require Python and pytest rather than skip unavailable Python tests.
 
-## Tutorials
-
-A standalone C++ tutorial is available in `tutorial/`, built against an **installed** Ariadne Tree library, as in the BDD repository.
-
-```bash
-cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
-cmake --build build-release --parallel --target everything
-cmake --install build-release --prefix /path/to/install
-cmake -S tutorial -B tutorial-build -DCMAKE_PREFIX_PATH=/path/to/install
-cmake --build tutorial-build
-./tutorial-build/tutorial_tree
-```
-
-The corresponding Python tutorial is `tutorial/tutorial_tree.py` and imports the installed `pyariadne_tree` extension. CI runs C++/Python tests in Debug and builds installed-library tutorials in Release.
-
 ## ThreadSanitizer
 
 ```bash
@@ -152,3 +137,4 @@ using the earlier `--workers` interface and remain for reference.
 
 **Manual only:** the executable is not registered with CTest and
 not run by CI. Normal build targets may still compile it.
+
