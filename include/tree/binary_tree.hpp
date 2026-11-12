@@ -29,7 +29,6 @@
 #ifndef ARIADNE_BINARY_TREE_HPP
 #define ARIADNE_BINARY_TREE_HPP
 
-
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -38,19 +37,18 @@
 #include "utility/binary_word.hpp"
 #include "utility/macros.hpp"
 
-
 namespace Ariadne {
 
 //! \brief The binary-tree node operation is not allowed on a non-leaf node.
 class NotALeafNodeException : public std::logic_error {
   public:
-    NotALeafNodeException(const StringType& str) : std::logic_error(str) { }
+    NotALeafNodeException(const StringType& str) : std::logic_error(str) {}
 };
 
 //! \brief The binary-tree node operation is not allowed on a leaf node.
 class IsALeafNodeException : public std::logic_error {
   public:
-    IsALeafNodeException(const StringType& str) : std::logic_error(str) { }
+    IsALeafNodeException(const StringType& str) : std::logic_error(str) {}
 };
 
 typedef std::vector<Bool> BooleanArray;
@@ -93,25 +91,25 @@ class BinaryTreeNode {
     //! \brief This method recombined the sub tree nodes rooted to \a pCurrentNode.
     //! Note that, the two leaf nodes with the same parent are removed if they have
     //! the same value of isEnabled fields.
-    Void recombine_node(BinaryTreeNode * pCurrentNode);
+    Void recombine_node(BinaryTreeNode* pCurrentNode);
     /** @brief Recursively recombine independent subtrees using a bounded number of tasks. */
     static Void recombine_parallel_node(BinaryTreeNode* node, unsigned forks_remaining);
 
     //! \brief This method is used for recursive restoration of the binary tree from
     //! the used data, i.e. \a theTree and \a theEnabledCells. It is used in the
     //! constructor \a BinaryTreeNode( const BooleanArray& , const BooleanArray& )
-    Void restore_node( BinaryTreeNode * pCurrentNode, Nat & arr_index, Nat & leaf_counter,
-                       const BooleanArray& theTree, const BooleanArray& theEnabledCells);
+    Void restore_node(BinaryTreeNode* pCurrentNode, Nat& arr_index, Nat& leaf_counter,
+                      const BooleanArray& theTree, const BooleanArray& theEnabledCells);
 
     //! \brief This method is used in constructors for the node initialization
-    Void init( ValidatedKleenean isEnabled, BinaryTreeNode* pLeftNode, BinaryTreeNode* pRightNode );
+    Void init(ValidatedKleenean isEnabled, BinaryTreeNode* pLeftNode, BinaryTreeNode* pRightNode);
 
   public:
     //!@{
     //! \name Constructors
 
     //! \brief Construct a tree node.
-      explicit BinaryTreeNode(const ValidatedKleenean _isEnabled = false );
+    explicit BinaryTreeNode(const ValidatedKleenean _isEnabled = false);
 
     //! \brief The copy constructor.
     //! The the node and all it's sub nodes are copied.
@@ -130,7 +128,7 @@ class BinaryTreeNode {
     //!     /   \       tree nodes are:            1  2  3  4  5
     //!    3     4      \a theEnabledCells contains true/false values for the leaf nodes
     //! of the tree. Their order is the same as in \a theTree, e.g. here it is: 3,4,5
-    explicit BinaryTreeNode( const BooleanArray& theTree, const BooleanArray& theEnabledCells );
+    explicit BinaryTreeNode(const BooleanArray& theTree, const BooleanArray& theEnabledCells);
 
     //!@}
 
@@ -152,7 +150,7 @@ class BinaryTreeNode {
     //! or is in a "virtual" subtree of some enabled node (note that enabled nodes can only be leafs).
     //! Note that: \a path is treated as if it is rooted to this node, we assume that the path starts
     //! from position \a position of \a path. The parameter \a position is used for recursive calls only.
-    Bool is_enabled( const BinaryWord & path, const Nat position = 0) const;
+    Bool is_enabled(const BinaryWord& path, const Nat position = 0) const;
 
     //! \brief Returns true if the node is marked as disabled, otherwise false
     Bool is_disabled() const;
@@ -161,25 +159,25 @@ class BinaryTreeNode {
     Bool is_leaf() const;
 
     //! \brief Return a borrowed child pointer (nullptr for a leaf).
-    BinaryTreeNode * child_node(Bool left_or_right) const;
+    BinaryTreeNode* child_node(Bool left_or_right) const;
 
     //! \brief Return a borrowed left child pointer (nullptr for a leaf).
-    BinaryTreeNode * left_node() const;
+    BinaryTreeNode* left_node() const;
 
     //! \brief Return a borrowed right child pointer (nullptr for a leaf).
-    BinaryTreeNode * right_node() const;
+    BinaryTreeNode* right_node() const;
 
     //! \brief Returns the depth of the sub-tree rooted to the given node, i.e. the depth of it's deepest node
     Nat depth() const;
 
     //! \brief Compare node state and subtree structure, not semantic membership.
-    Bool operator==(const BinaryTreeNode & otherNode ) const;
+    Bool operator==(const BinaryTreeNode& otherNode) const;
 
     //! \brief Marks the node as enabled or disabled.
     Void set(Bool all_enabled_or_all_disabled);
 
     /** @brief Compare two potentially null subtree roots for structural equality. */
-    static Bool is_equal_nodes( const BinaryTreeNode * pFirstNode, const BinaryTreeNode * pSecondNode );
+    static Bool is_equal_nodes(const BinaryTreeNode* pFirstNode, const BinaryTreeNode* pSecondNode);
 
     //!@}
 
@@ -189,7 +187,7 @@ class BinaryTreeNode {
     //! \brief This method makes the node to become a leaf node with the enabled value : \a is_enabled
     //! NOTE: the leat and the right sub-trees (are deallocated.
     //! WARNING: this method MUST NOT be called on a non-leaf node!!!
-    Void make_leaf( ValidatedKleenean is_enabled );
+    Void make_leaf(ValidatedKleenean is_enabled);
 
     //! \brief Marks the leaf node as enabled, otherwise they through \a NotALeafNodeEsception
     Void set_enabled();
@@ -218,11 +216,11 @@ class BinaryTreeNode {
 
     //! \brief Allows to assign one binary tree node to the other, this is done by copying
     //! the nodes value and the sub-trees. The sub-trees of this node are deallocated.
-    BinaryTreeNode& operator=(const BinaryTreeNode & otherNode );
+    BinaryTreeNode& operator=(const BinaryTreeNode& otherNode);
 
     //! \brief Copy all the data (including the sub-nodes) from the node pointed by \a pOtherNode into the given node.
     //! Note that here we will create copies of the sub nodes, and NOT just copy pointers to them!
-    Void copy_from( const BinaryTreeNode * pOtherNode );
+    Void copy_from(const BinaryTreeNode* pOtherNode);
 
     //! \brief This method recombined the sub tree nodes. Note that, the two leaf nodes with
     //! the same parent are removed if they have the same value of isEnabled fields.
@@ -237,19 +235,19 @@ class BinaryTreeNode {
 
     //! \brief Stores the binary tree in a form of two arrays, their structure is the same as needed for
     //! the BinaryTreeNode( const BooleanArray& , const BooleanArray&  ) constructor
-    Void tree_to_binary_words( BinaryWord & tree, BinaryWord & leaves ) const;
+    Void tree_to_binary_words(BinaryWord& tree, BinaryWord& leaves) const;
 
     //! \brief Stores the binary tree node as a string*/
     String node_to_string() const;
 
     //! \brief Finds(creates) the leaf node defined by the \a path and marks it as enabled.
     //! If some prefix of the \a path references an enabled node then nothing is done.
-    Void add_enabled( const BinaryWord & path );
+    Void add_enabled(const BinaryWord& path);
 
     //! \brief This method adjoins the enabled nodes of \a subTree to this tree.
     //! Note that, the position of the root node of \a subTree within this
     //! tree is defined by path.
-    Void add_enabled( const BinaryTreeNode * pOtherSubTree, const BinaryWord & path );
+    Void add_enabled(const BinaryTreeNode* pOtherSubTree, const BinaryWord& path);
 
     //! \brief This method merges \a pFromTreeRoot into \a pToTreeRoot.
     //! The enabled nodes of the former tree are added to the latter tree.
@@ -260,80 +258,80 @@ class BinaryTreeNode {
     //! then we just "substitute" the former one with the latter.
     //! NOTE: 1. This function is recursive. 2. No pointers are copied between
     //! \a pToTreeRoot and \a pFromTreeRoot.
-    Void add_enabled( BinaryTreeNode* pToTreeRoot, const BinaryTreeNode* pFromTreeRoot );
+    Void add_enabled(BinaryTreeNode* pToTreeRoot, const BinaryTreeNode* pFromTreeRoot);
 
     //! \brief Starting in the \a pNode node as at the root, this method counts
     //! the number of enabled leaf nodes in the subtree
     //! rooted at pNode.
-    static SizeType count_enabled_leaf_nodes( const BinaryTreeNode* pNode );
+    static SizeType count_enabled_leaf_nodes(const BinaryTreeNode* pNode);
 
     //! \brief Starting in the \a pRootTreeNode node as at the root, this method finds(creates)
     //! the leaf node defined by the \a path and marks it as enabled. If some prefix of the \a path
     //! references an enabled node then nothing is done.
     //! NOTE: This is a recursive method on the position (\a position) in the binary path (\a path).
     //! Therefore, the initial evaluate of this method should be done with \a position == 0;
-    static Void add_enabled( BinaryTreeNode* pRootTreeNode, const BinaryWord& path, const Nat position );
+    static Void add_enabled(BinaryTreeNode* pRootTreeNode, const BinaryWord& path, const Nat position);
 
     //! \brief Creates a binary tree of the height rootNodePath.size(), puts the subtree oldRootNode
     //! into the node defined by the path \a rootNodePath, returns the root node of the extended tree.
-    static BinaryTreeNode * prepend_tree( const BinaryWord & rootNodePath, BinaryTreeNode * oldRootNode);
+    static BinaryTreeNode* prepend_tree(const BinaryWord& rootNodePath, BinaryTreeNode* oldRootNode);
 
     //! \brief This method restricts \a pThisNode to \a pOtherNode.
     //! In essance we do the inplace AND on the tree node pThisNode.
     //! Note that, this method is recursive.
-    static Void restrict( BinaryTreeNode * pThisNode, const BinaryTreeNode * pOtherNode );
+    static Void restrict(BinaryTreeNode* pThisNode, const BinaryTreeNode* pOtherNode);
 
     //! \brief This method removed enabled nodes of \a pOtherNode from \a pThisNode.
     //! Note that, this method is recursive.
-    static Void remove( BinaryTreeNode * pThisNode, const BinaryTreeNode * pOtherNode );
+    static Void remove(BinaryTreeNode* pThisNode, const BinaryTreeNode* pOtherNode);
 
     //! \brief checks if two trees intersect in a set-theory sence.
     //! I.e. we assume that pRootNodeOne and pRootNodeTwo correspond to the same (virtual) root
     //! and then we see if the enabled leaf node of one tree contain enabled leaf nodes of
     //! another tree as their (virtual) children.
-    static Bool intersect( const BinaryTreeNode * pRootNodeOne, const BinaryTreeNode * pRootNodeTwo );
+    static Bool intersect(const BinaryTreeNode* pRootNodeOne, const BinaryTreeNode* pRootNodeTwo);
 
     //! \brief checks if the tree pRootNodeOne is a subset of the tree pRootNodeTwo, in a set-theory sence.
     //! I.e. we assume that pRootNodeOne and pRootNodeTwo correspond to the same (virtual) root
     //! and then we see if every enabled leaf node of pRootNodeOne is contained in the enabled leaf nodes of
     //! pRootNodeTwo, or it is covered by the enabled leaf nodes of pRootNodeTwo. When we _write, contained and
     //! covered then we mean: is a subnode in the (virtual) tree and all it's subnodes in the (virtual) tree.
-    static Bool subset( const BinaryTreeNode * pRootNodeOne, const BinaryTreeNode * pRootNodeTwo );
+    static Bool subset(const BinaryTreeNode* pRootNodeOne, const BinaryTreeNode* pRootNodeTwo);
 
     //!@}
 };
 
 //***************************************BinaryTreeNode**********************************************/
 
-inline Void BinaryTreeNode::init( ValidatedKleenean isEnabled, BinaryTreeNode* pLeftNode, BinaryTreeNode* pRightNode ) {
+inline Void BinaryTreeNode::init(ValidatedKleenean isEnabled, BinaryTreeNode* pLeftNode, BinaryTreeNode* pRightNode) {
     _isEnabled = isEnabled;
     _pLeftNode = pLeftNode;
     _pRightNode = pRightNode;
 }
 
 inline BinaryTreeNode::BinaryTreeNode(const ValidatedKleenean isEnabled) {
-    init( isEnabled, nullptr, nullptr );
+    init(isEnabled, nullptr, nullptr);
 }
 
 inline BinaryTreeNode::BinaryTreeNode(const BinaryTreeNode& theTreeNode) {
     // Children are always created and removed as a pair.
-    if( theTreeNode._pLeftNode != nullptr ) {
-        init( theTreeNode._isEnabled, new BinaryTreeNode( *theTreeNode._pLeftNode ), new BinaryTreeNode( *theTreeNode._pRightNode ) );
+    if (theTreeNode._pLeftNode != nullptr) {
+        init(theTreeNode._isEnabled, new BinaryTreeNode(*theTreeNode._pLeftNode), new BinaryTreeNode(*theTreeNode._pRightNode));
     } else {
-        //NOTE: We do not allow for nodes where one leaf is nullptr and another is not
-        init( theTreeNode._isEnabled, nullptr, nullptr );
+        // NOTE: We do not allow for nodes where one leaf is nullptr and another is not
+        init(theTreeNode._isEnabled, nullptr, nullptr);
     }
 }
 
-inline BinaryTreeNode::BinaryTreeNode( const BooleanArray& theTree, const BooleanArray& theEnabledCells ) {
-    //Make default initialization
-    init( false, nullptr, nullptr ) ;
+inline BinaryTreeNode::BinaryTreeNode(const BooleanArray& theTree, const BooleanArray& theEnabledCells) {
+    // Make default initialization
+    init(false, nullptr, nullptr);
 
-    //If the tree is not empry and there are enabled leafs then do the thing
-    if( ( theTree.size() ) > 0 && ( theEnabledCells.size() > 0 ) ) {
+    // If the tree is not empry and there are enabled leafs then do the thing
+    if ((theTree.size()) > 0 && (theEnabledCells.size() > 0)) {
         Nat arr_index = 0, leaf_counter = 0;
         try {
-            restore_node( this, arr_index, leaf_counter, theTree, theEnabledCells );
+            restore_node(this, arr_index, leaf_counter, theTree, theEnabledCells);
         } catch (...) {
             // A throwing constructor does not run ~BinaryTreeNode().
             delete _pLeftNode;
@@ -343,16 +341,16 @@ inline BinaryTreeNode::BinaryTreeNode( const BooleanArray& theTree, const Boolea
             throw;
         }
     } else {
-        //Otherwise settle with one disabled node
+        // Otherwise settle with one disabled node
         this->set_disabled();
     }
 }
 
 inline BinaryTreeNode::~BinaryTreeNode() {
-    if( _pLeftNode != nullptr ) {
+    if (_pLeftNode != nullptr) {
         delete _pLeftNode;
     }
-    if( _pRightNode != nullptr ) {
+    if (_pRightNode != nullptr) {
         delete _pRightNode;
     }
 }
@@ -361,57 +359,71 @@ inline Bool BinaryTreeNode::is_enabled() const {
     return definitely(_isEnabled);
 }
 
-inline Bool BinaryTreeNode::is_disabled() const{
-    return ! possibly(_isEnabled) ;
+inline Bool BinaryTreeNode::is_disabled() const {
+    return !possibly(_isEnabled);
 }
 
-inline Bool BinaryTreeNode::is_leaf() const{
+inline Bool BinaryTreeNode::is_leaf() const {
     return _pLeftNode == nullptr;
 }
 
-inline BinaryTreeNode * BinaryTreeNode::child_node(Bool left_or_right) const {
+inline BinaryTreeNode* BinaryTreeNode::child_node(Bool left_or_right) const {
     return left_or_right ? _pRightNode : _pLeftNode;
 }
 
-inline BinaryTreeNode * BinaryTreeNode::left_node() const {
+inline BinaryTreeNode* BinaryTreeNode::left_node() const {
     return _pLeftNode;
 }
 
-inline BinaryTreeNode * BinaryTreeNode::right_node() const {
+inline BinaryTreeNode* BinaryTreeNode::right_node() const {
     return _pRightNode;
 }
 
 inline Void BinaryTreeNode::set(Bool enabled_or_disabled) {
     _isEnabled = enabled_or_disabled;
-    if( _pLeftNode != nullptr ) {
-        delete _pLeftNode; _pLeftNode = nullptr;
+    if (_pLeftNode != nullptr) {
+        delete _pLeftNode;
+        _pLeftNode = nullptr;
     }
-    if( _pRightNode != nullptr ) {
-        delete _pRightNode; _pRightNode = nullptr;
+    if (_pRightNode != nullptr) {
+        delete _pRightNode;
+        _pRightNode = nullptr;
     }
 }
 
 inline Void BinaryTreeNode::set_enabled() {
-    if ( is_leaf() ) {
+    if (is_leaf()) {
         _isEnabled = true;
     } else {
         throw NotALeafNodeException(ARIADNE_PRETTY_FUNCTION);
     }
 }
 
-inline Void BinaryTreeNode::copy_from( const BinaryTreeNode * pOtherNode ) {
-    if( pOtherNode == this ) { return; }
-    if( pOtherNode != nullptr ) {
+inline Void BinaryTreeNode::copy_from(const BinaryTreeNode* pOtherNode) {
+    if (pOtherNode == this) {
+        return;
+    }
+    if (pOtherNode != nullptr) {
         _isEnabled = pOtherNode->_isEnabled;
-        if( _pLeftNode != nullptr) { delete _pLeftNode; _pLeftNode = nullptr; }
-        if( _pRightNode != nullptr) { delete _pRightNode; _pRightNode = nullptr; }
-        if( pOtherNode->_pLeftNode != nullptr ) { _pLeftNode = new BinaryTreeNode( * (pOtherNode->_pLeftNode) ); }
-        if( pOtherNode->_pRightNode != nullptr ) { _pRightNode = new BinaryTreeNode( * (pOtherNode->_pRightNode) ); }
+        if (_pLeftNode != nullptr) {
+            delete _pLeftNode;
+            _pLeftNode = nullptr;
+        }
+        if (_pRightNode != nullptr) {
+            delete _pRightNode;
+            _pRightNode = nullptr;
+        }
+        if (pOtherNode->_pLeftNode != nullptr) {
+            _pLeftNode = new BinaryTreeNode(*(pOtherNode->_pLeftNode));
+        }
+        if (pOtherNode->_pRightNode != nullptr) {
+            _pRightNode = new BinaryTreeNode(*(pOtherNode->_pRightNode));
+        }
     }
 }
 
 inline Void BinaryTreeNode::set_disabled() {
-    if ( is_leaf() ) {
+    if (is_leaf()) {
         _isEnabled = false;
     } else {
         throw NotALeafNodeException(ARIADNE_PRETTY_FUNCTION);
@@ -419,29 +431,35 @@ inline Void BinaryTreeNode::set_disabled() {
 }
 
 inline Void BinaryTreeNode::set_unknown() {
-    if ( ! is_leaf() ) {
+    if (!is_leaf()) {
         _isEnabled = indeterminate;
     } else {
         throw IsALeafNodeException(ARIADNE_PRETTY_FUNCTION);
     }
 }
 
-inline Void BinaryTreeNode::make_leaf(ValidatedKleenean is_enabled ) {
+inline Void BinaryTreeNode::make_leaf(ValidatedKleenean is_enabled) {
     _isEnabled = is_enabled;
-    if( _pLeftNode != nullptr ) { delete _pLeftNode; _pLeftNode= nullptr; }
-    if( _pRightNode != nullptr ) { delete _pRightNode; _pRightNode= nullptr; }
+    if (_pLeftNode != nullptr) {
+        delete _pLeftNode;
+        _pLeftNode = nullptr;
+    }
+    if (_pRightNode != nullptr) {
+        delete _pRightNode;
+        _pRightNode = nullptr;
+    }
 }
 
 inline Void BinaryTreeNode::split() {
-    if ( is_leaf() ) {
-        _pLeftNode  = new BinaryTreeNode(_isEnabled);
+    if (is_leaf()) {
+        _pLeftNode = new BinaryTreeNode(_isEnabled);
         _pRightNode = new BinaryTreeNode(_isEnabled);
         set_unknown();
     }
 }
 
-inline Void BinaryTreeNode::add_enabled( const BinaryWord& path ) {
-    add_enabled( this, path, 0 );
+inline Void BinaryTreeNode::add_enabled(const BinaryWord& path) {
+    add_enabled(this, path, 0);
 }
 
 inline Void BinaryTreeNode::mince(const Nat depth) {
@@ -458,18 +476,30 @@ inline String BinaryTreeNode::node_to_string() const {
     return tmp_stream.str();
 }
 
-inline BinaryTreeNode& BinaryTreeNode::operator=( const BinaryTreeNode & otherNode ) {
-    if( this == &otherNode ) { return *this; }
-    //Copy the node value
+inline BinaryTreeNode& BinaryTreeNode::operator=(const BinaryTreeNode& otherNode) {
+    if (this == &otherNode) {
+        return *this;
+    }
+    // Copy the node value
     _isEnabled = otherNode._isEnabled;
 
-    //Deallocate memory for the children, if any
-    if( _pLeftNode != nullptr ) { delete _pLeftNode; _pLeftNode = nullptr; }
-    if( _pRightNode != nullptr ) { delete _pRightNode; _pRightNode = nullptr; }
+    // Deallocate memory for the children, if any
+    if (_pLeftNode != nullptr) {
+        delete _pLeftNode;
+        _pLeftNode = nullptr;
+    }
+    if (_pRightNode != nullptr) {
+        delete _pRightNode;
+        _pRightNode = nullptr;
+    }
 
-    //Copy the children trees from the otherNode
-    if( otherNode._pLeftNode != nullptr ) { _pLeftNode = new BinaryTreeNode( * ( otherNode._pLeftNode ) ); }
-    if( otherNode._pRightNode != nullptr ) { _pRightNode = new BinaryTreeNode( * ( otherNode._pRightNode ) ); }
+    // Copy the children trees from the otherNode
+    if (otherNode._pLeftNode != nullptr) {
+        _pLeftNode = new BinaryTreeNode(*(otherNode._pLeftNode));
+    }
+    if (otherNode._pRightNode != nullptr) {
+        _pRightNode = new BinaryTreeNode(*(otherNode._pRightNode));
+    }
 
     return *this;
 }
@@ -478,14 +508,12 @@ inline BinaryTreeNode& BinaryTreeNode::operator=( const BinaryTreeNode & otherNo
 
 //! \brief Stream insertion operator, prints out two binary arrays, one is the tree structure
 //! and the other is the true/false (enabled/disabled) values for the leaf nodes
-inline OutputStream& operator<<(OutputStream& output_stream, const BinaryTreeNode & binary_tree ) {
+inline OutputStream& operator<<(OutputStream& output_stream, const BinaryTreeNode& binary_tree) {
     BinaryWord tree, leaves;
-    binary_tree.tree_to_binary_words( tree, leaves );
+    binary_tree.tree_to_binary_words(tree, leaves);
     return output_stream << "BinaryTreeNode( Tree: " << tree << ", Leaves: " << leaves << ")";
 }
 
-
 } // namespace Ariadne
-
 
 #endif /* ARIADNE_BINARY_TREE_HPP */
