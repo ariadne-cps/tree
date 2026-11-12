@@ -3,24 +3,27 @@
  *
  *  Copyright  2008-20  Ivan S. Zapreev, Pieter Collins
  *
- *
  ****************************************************************************/
 
 /*
- *  This file is part of Ariadne.
+ *  This file is part of Ariadne Tree.
  *
- *  Ariadne is free software: you can redistribute it and/or modify
+ *  Ariadne Tree is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
- *  Ariadne is distributed in the hope that it will be useful,
+ *  Ariadne Tree is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Ariadne.  If not, see <https://www.gnu.org/licenses/>.
+ *  along with Ariadne Tree. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/** @file tree/binary_tree.hpp
+ *  @brief Owning binary-tree nodes, path membership, refinement, and subtree reduction.
  */
 
 #ifndef ARIADNE_BINARY_TREE_HPP
@@ -91,6 +94,7 @@ class BinaryTreeNode {
     //! Note that, the two leaf nodes with the same parent are removed if they have
     //! the same value of isEnabled fields.
     Void recombine_node(BinaryTreeNode * pCurrentNode);
+    /** @brief Recursively recombine independent subtrees using a bounded number of tasks. */
     static Void recombine_parallel_node(BinaryTreeNode* node, unsigned forks_remaining);
 
     //! \brief This method is used for recursive restoration of the binary tree from
@@ -174,6 +178,7 @@ class BinaryTreeNode {
     //! \brief Marks the node as enabled or disabled.
     Void set(Bool all_enabled_or_all_disabled);
 
+    /** @brief Compare two potentially null subtree roots for structural equality. */
     static Bool is_equal_nodes( const BinaryTreeNode * pFirstNode, const BinaryTreeNode * pSecondNode );
 
     //!@}
