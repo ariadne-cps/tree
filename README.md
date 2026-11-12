@@ -26,7 +26,18 @@ Although independently maintained and usable, this repository is also part of th
 
 `BinaryTreeNode` is **not a synchronized container**. Its child accessors return borrowed pointers, which can become invalid after mutations. Alongside sequential `recombine()`, it offers bounded internal subtree parallelism through `recombine_parallel()` using the shared `ThreadManager`; callers must prevent concurrent access to the same tree while this operation runs. No mutex is added to individual nodes.
 
-The planned n-ary tree for hybrid-evolution trajectory dependencies is **not implemented**. It will be designed as a separate abstraction rather than imposed on `BinaryTreeNode`.
+`DerivationTree<Object, Metadata>` provides an independent n-ary genealogy of
+application-defined objects. A node can keep progressing after it generates
+children. For hybrid evolution, its object can hold an ordered trajectory and
+its metadata can record local completion and the child's origin in its parent.
+The generic container does not interpret those fields or schedule evolution.
+
+The header-only implementation has checked, tree-qualified node IDs, stable
+object/metadata references across insertion, ordered child views, and iterative
+ancestor/descendant queries. It supports move-only payloads and tree moves.
+Recombination, removal and reparenting are future work. See the
+[DerivationTree contract](doc/derivationtree_design.md) for API, complexity,
+lifetime and exception guarantees.
 
 ## Layout
 
@@ -37,6 +48,7 @@ The planned n-ary tree for hybrid-evolution trajectory dependencies is **not imp
 - `python/bindings/`, `python/tests/`: optional Python extension and pytest tests.
 - `tutorial/`: standalone C++ and Python examples using an installed Tree module.
 - `doc/binary_tree_design.md`: semantics, ownership, invariants, limitations and extraction contract.
+- `doc/derivationtree_design.md`: generic object genealogy, API and storage contract.
 - `.github/workflows/`: platform, sanitizers and code-coverage checks.
 
 ## Dependencies

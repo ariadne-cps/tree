@@ -9,3 +9,13 @@ if(WIN32)
 endif()
 add_custom_target(tests)
 add_dependencies(tests test_binary_tree)
+
+add_executable(test_derivation_tree test_derivation_tree.cpp)
+target_link_libraries(test_derivation_tree PRIVATE ariadne-tree tree ariadne-testing)
+add_test(NAME test_derivation_tree COMMAND $<TARGET_FILE:test_derivation_tree> --concise)
+set_property(TEST test_derivation_tree PROPERTY LABELS "tree")
+if(WIN32)
+    set_tests_properties(test_derivation_tree PROPERTIES ENVIRONMENT_MODIFICATION
+        "PATH=path_list_prepend:$<TARGET_FILE_DIR:ariadne-tree>")
+endif()
+add_dependencies(tests test_derivation_tree)

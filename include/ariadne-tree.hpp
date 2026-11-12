@@ -30,6 +30,7 @@
 #define ARIADNE_TREE_MODULE_HPP
 
 #include "tree/binary_tree.hpp"
+#include "tree/derivation_tree.hpp"
 
 #include "ariadne-foundation.hpp"
 #include "ariadne-threading.hpp"

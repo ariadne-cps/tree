@@ -23,10 +23,11 @@
  */
 
 /** @file tutorial/tutorial_tree.cpp
- *  @brief Demonstrate binary-tree construction and set operations.
+ *  @brief Demonstrate binary-prefix sets and object genealogy.
  */
 
 #include <iostream>
+#include <vector>
 
 #include "ariadne-tree.hpp"
 using namespace Ariadne;
@@ -42,6 +43,23 @@ int main() {
     all.recombine();
     if (!all.is_leaf() || !all.is_enabled())
         return 3;
+
+    struct TrajectoryMetadata {
+        bool complete;
+        std::size_t origin;
+    };
+    DerivationTree<std::vector<double>, TrajectoryMetadata> trajectories;
+    const auto root = trajectories.create_root(std::vector<double>{0.0, 1.0}, TrajectoryMetadata{false, 0});
+    const auto child = trajectories.add_child(root, std::vector<double>{1.5}, TrajectoryMetadata{false, 1});
+    // The parent keeps progressing even after generating another trajectory.
+    trajectories.object(root).push_back(2.0);
+    trajectories.metadata(root).complete = true;
+    if (trajectories.object(root).size() != 3 || trajectories.metadata(child).complete)
+        return 4;
+    if (trajectories.parent(child) != root || trajectories.children(root).front() != child)
+        return 5;
+    if (trajectories.object(root)[trajectories.metadata(child).origin] != 1.0)
+        return 6;
     std::cout << "Ariadne Tree tutorial passed.\n";
     return 0;
 }
