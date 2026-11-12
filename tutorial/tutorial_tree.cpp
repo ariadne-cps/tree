@@ -60,6 +60,15 @@ int main() {
         return 5;
     if (trajectories.object(root)[trajectories.metadata(child).origin] != 1.0)
         return 6;
+    // Pruning retains this checkpoint; only its descendants are removed.
+    if (trajectories.prune(root) != 1 || trajectories.contains(child))
+        return 7;
+    if (trajectories.object(root).size() != 3 || !trajectories.metadata(root).complete)
+        return 8;
+    trajectories.metadata(root).complete = false;
+    const auto regrown = trajectories.add_child(root, std::vector<double>{2.5}, TrajectoryMetadata{false, 2});
+    if (regrown == child || trajectories.contains(child) || trajectories.parent(regrown) != root)
+        return 9;
     std::cout << "Ariadne Tree tutorial passed.\n";
     return 0;
 }

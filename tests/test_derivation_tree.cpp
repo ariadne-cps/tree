@@ -169,6 +169,13 @@ class TestDerivationTree : public Testing::ContextFixture {
                                              static_cast<int>(i));
                 ARIADNE_TESTING_EXPECT_EQUAL(*tree.parent(child), root);
             }
+            ARIADNE_TESTING_EXPECT_EQUAL(tree.prune(root), 4096u);
+            ARIADNE_TESTING_EXPECT_EQUAL(CheckedValue::alive, 2);
+            ARIADNE_TESTING_PROVE(&tree.object(root) == object);
+            ARIADNE_TESTING_PROVE(&tree.metadata(root) == metadata);
+            ARIADNE_TESTING_PROVE(!tree.contains(first));
+            const auto regrown = tree.add_child(root, 0, 0);
+            ARIADNE_TESTING_PROVE(regrown != first);
         }
         ARIADNE_TESTING_EXPECT_EQUAL(CheckedValue::alive, 0);
     }
@@ -190,6 +197,12 @@ class TestDerivationTree : public Testing::ContextFixture {
             ARIADNE_TESTING_EXPECT_EQUAL(tree.object(descendants[i]),
                                          static_cast<int>(i + 1));
         }
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.prune(root), 20000u);
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.size(), 1u);
+        ARIADNE_TESTING_PROVE(!tree.contains(last));
+        const auto regrown = tree.add_child(root, 1, 1);
+        ARIADNE_TESTING_PROVE(regrown != descendants.front());
+        ARIADNE_TESTING_EXPECT_EQUAL(*tree.parent(regrown), root);
         // Flat storage and iterative traversal also avoid recursive destruction.
     }
 
@@ -209,6 +222,7 @@ class TestDerivationTree : public Testing::ContextFixture {
             ARIADNE_TESTING_EXPECT_THROWS(std::out_of_range, tree.descendants(id));
             ARIADNE_TESTING_EXPECT_THROWS(std::out_of_range,
                                           tree.add_child(id, 2, "invalid"));
+            ARIADNE_TESTING_EXPECT_THROWS(std::out_of_range, tree.prune(id));
         }
         DerivationTree<std::string, int> different_type;
         const auto cross_type = different_type.create_root("different type", 0);
@@ -291,6 +305,154 @@ class TestDerivationTree : public Testing::ContextFixture {
         }
         ARIADNE_TESTING_EXPECT_EQUAL(CheckedValue::alive, 0);
     }
+
+    void test_prune_retains_boundary_and_other_branches() {
+        Tree tree;
+        const auto root = tree.create_root(0, "root");
+        const auto boundary = tree.add_child(root, 1, "checkpoint");
+        const auto sibling = tree.add_child(root, 2, "unaffected");
+        const auto first = tree.add_child(boundary, 3, "first");
+        const auto second = tree.add_child(boundary, 4, "second");
+        const auto grandchild = tree.add_child(first, 5, "grandchild");
+        const auto cousin = tree.add_child(sibling, 6, "cousin");
+        auto *boundary_object = &tree.object(boundary);
+        auto *boundary_metadata = &tree.metadata(boundary);
+        auto *sibling_object = &tree.object(sibling);
+        const auto unaffected_children = tree.children(root);
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.prune(boundary), 3u);
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.size(), 4u);
+        ARIADNE_TESTING_PROVE(&tree.object(boundary) == boundary_object);
+        ARIADNE_TESTING_PROVE(&tree.metadata(boundary) == boundary_metadata);
+        ARIADNE_TESTING_EXPECT_EQUAL(*boundary_object, 1);
+        ARIADNE_TESTING_EXPECT_EQUAL(*boundary_metadata, std::string("checkpoint"));
+        ARIADNE_TESTING_PROVE(&tree.object(sibling) == sibling_object);
+        ARIADNE_TESTING_EXPECT_EQUAL(*tree.parent(boundary), root);
+        ARIADNE_TESTING_EXPECT_EQUAL(unaffected_children[0], boundary);
+        ARIADNE_TESTING_EXPECT_EQUAL(unaffected_children[1], sibling);
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.children(sibling).front(), cousin);
+        ARIADNE_TESTING_PROVE(tree.children(boundary).empty());
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.prune(boundary), 0u);
+        const std::vector<Tree::NodeId> removed{first, second, grandchild};
+        for (const auto old_id: removed) {
+            ARIADNE_TESTING_PROVE(!tree.contains(old_id));
+            ARIADNE_TESTING_EXPECT_THROWS(std::out_of_range, tree.object(old_id));
+            ARIADNE_TESTING_EXPECT_THROWS(std::out_of_range, tree.metadata(old_id));
+            ARIADNE_TESTING_EXPECT_THROWS(std::out_of_range, tree.parent(old_id));
+            ARIADNE_TESTING_EXPECT_THROWS(std::out_of_range, tree.children(old_id));
+            ARIADNE_TESTING_EXPECT_THROWS(std::out_of_range, tree.ancestors(old_id));
+            ARIADNE_TESTING_EXPECT_THROWS(std::out_of_range, tree.descendants(old_id));
+            ARIADNE_TESTING_EXPECT_THROWS(std::out_of_range, tree.prune(old_id));
+            ARIADNE_TESTING_EXPECT_THROWS(std::out_of_range, tree.add_child(old_id, 9, "stale"));
+        }
+        const auto regrown_first = tree.add_child(boundary, 7, "regrown first");
+        const auto regrown_second = tree.add_child(boundary, 8, "regrown second");
+        const auto regrown_grandchild = tree.add_child(regrown_first, 9, "regrown grandchild");
+        for (const auto old_id: removed) {
+            ARIADNE_TESTING_PROVE(!tree.contains(old_id));
+            ARIADNE_TESTING_PROVE(old_id != regrown_first && old_id != regrown_second && old_id != regrown_grandchild);
+        }
+        const std::vector<Tree::NodeId> expected{boundary, regrown_first, regrown_grandchild, regrown_second, sibling, cousin};
+        ARIADNE_TESTING_PROVE(tree.descendants(root) == expected);
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.size(), 7u);
+    }
+
+    void test_prune_root_leaf_and_metadata() {
+        DerivationTree<std::vector<int>, TrajectoryMetadata> tree;
+        const auto root = tree.create_root(std::vector<int>{10, 20}, TrajectoryMetadata{true, 0});
+        auto &history = tree.object(root);
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.prune(root), 0u);
+        const auto child = tree.add_child(root, std::vector<int>{21}, TrajectoryMetadata{false, 1});
+        const auto grandchild = tree.add_child(child, std::vector<int>{22}, TrajectoryMetadata{false, 0});
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.prune(root), 2u);
+        ARIADNE_TESTING_PROVE(!tree.empty());
+        ARIADNE_TESTING_EXPECT_EQUAL(*tree.root(), root);
+        ARIADNE_TESTING_PROVE(!tree.parent(root));
+        ARIADNE_TESTING_EXPECT_EQUAL(history.size(), 2u);
+        ARIADNE_TESTING_PROVE(tree.metadata(root).complete);
+        ARIADNE_TESTING_PROVE(!tree.contains(child));
+        ARIADNE_TESTING_PROVE(!tree.contains(grandchild));
+        // Completion and trajectory suffixes are consumer-controlled payloads.
+        tree.metadata(root).complete = false;
+        history.push_back(30);
+        const auto new_child = tree.add_child(root, std::vector<int>{31}, TrajectoryMetadata{false, 2});
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.object(root)[tree.metadata(new_child).origin], 30);
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.prune(new_child), 0u);
+        ARIADNE_TESTING_PROVE(tree.contains(new_child));
+    }
+
+    void test_recycled_slots_release_payloads_and_rollback_failures() {
+        ARIADNE_TESTING_EXPECT_EQUAL(CheckedValue::alive, 0);
+        {
+            DerivationTree<CheckedValue, CheckedValue> tree;
+            const auto root = tree.create_root(1, 2);
+            auto *root_object = &tree.object(root);
+            const auto child = tree.add_child(root, 3, 4);
+            const auto grandchild = tree.add_child(child, 5, 6);
+            ARIADNE_TESTING_EXPECT_EQUAL(CheckedValue::alive, 6);
+            ARIADNE_TESTING_EXPECT_EQUAL(tree.prune(root), 2u);
+            ARIADNE_TESTING_EXPECT_EQUAL(CheckedValue::alive, 2);
+            ARIADNE_TESTING_EXPECT_THROWS(std::runtime_error, tree.add_child(root, -7, 8));
+            ARIADNE_TESTING_EXPECT_THROWS(std::runtime_error, tree.add_child(root, 7, -8));
+            ARIADNE_TESTING_EXPECT_EQUAL(CheckedValue::alive, 2);
+            ARIADNE_TESTING_EXPECT_EQUAL(tree.size(), 1u);
+            ARIADNE_TESTING_PROVE(tree.children(root).empty());
+            const auto next_child = tree.add_child(root, 7, 8);
+            const auto next_grandchild = tree.add_child(next_child, 9, 10);
+            ARIADNE_TESTING_EXPECT_EQUAL(CheckedValue::alive, 6);
+            ARIADNE_TESTING_PROVE(!tree.contains(child));
+            ARIADNE_TESTING_PROVE(!tree.contains(grandchild));
+            ARIADNE_TESTING_EXPECT_EQUAL(*tree.parent(next_grandchild), next_child);
+            ARIADNE_TESTING_EXPECT_EQUAL(tree.prune(root), 2u);
+            ARIADNE_TESTING_PROVE(!tree.contains(next_child));
+            ARIADNE_TESTING_PROVE(!tree.contains(next_grandchild));
+            std::vector<DerivationTreeNodeId> prior_ids;
+            for (int cycle = 0; cycle < 200; ++cycle) {
+                const auto current_id = tree.add_child(root, cycle, cycle);
+                for (const auto prior_id: prior_ids) {
+                    ARIADNE_TESTING_PROVE(!tree.contains(prior_id));
+                    ARIADNE_TESTING_PROVE(prior_id != current_id);
+                }
+                prior_ids.push_back(current_id);
+                ARIADNE_TESTING_EXPECT_EQUAL(CheckedValue::alive, 4);
+                ARIADNE_TESTING_EXPECT_EQUAL(tree.prune(root), 1u);
+                ARIADNE_TESTING_EXPECT_EQUAL(CheckedValue::alive, 2);
+            }
+            ARIADNE_TESTING_PROVE(&tree.object(root) == root_object);
+        }
+        ARIADNE_TESTING_EXPECT_EQUAL(CheckedValue::alive, 0);
+    }
+
+    void test_pruned_storage_survives_moves() {
+        using MoveTree = DerivationTree<std::unique_ptr<int>, int>;
+        MoveTree source;
+        const auto root = source.create_root(std::make_unique<int>(1), 1);
+        const auto branch = source.add_child(root, std::make_unique<int>(2), 2);
+        const auto removed = source.add_child(branch, std::make_unique<int>(3), 3);
+        auto *retained = &source.object(branch);
+        ARIADNE_TESTING_EXPECT_EQUAL(source.prune(branch), 1u);
+        MoveTree moved(std::move(source));
+        ARIADNE_TESTING_PROVE(source.empty());
+        ARIADNE_TESTING_PROVE(!source.contains(root));
+        ARIADNE_TESTING_PROVE(!moved.contains(removed));
+        ARIADNE_TESTING_EXPECT_EQUAL(moved.size(), 2u);
+        ARIADNE_TESTING_PROVE(&moved.object(branch) == retained);
+        const auto regrown = moved.add_child(branch, std::make_unique<int>(4), 4);
+        ARIADNE_TESTING_PROVE(regrown != removed);
+        MoveTree destination;
+        const auto old_destination = destination.create_root(std::make_unique<int>(5), 5);
+        ARIADNE_TESTING_EXPECT_EQUAL(moved.prune(branch), 1u);
+        destination = std::move(moved);
+        ARIADNE_TESTING_PROVE(moved.empty());
+        ARIADNE_TESTING_PROVE(!destination.contains(old_destination));
+        ARIADNE_TESTING_PROVE(!destination.contains(removed));
+        ARIADNE_TESTING_PROVE(!destination.contains(regrown));
+        ARIADNE_TESTING_PROVE(&destination.object(branch) == retained);
+        const auto after_assignment = destination.add_child(branch, std::make_unique<int>(6), 6);
+        ARIADNE_TESTING_PROVE(after_assignment != removed && after_assignment != regrown);
+        ARIADNE_TESTING_EXPECT_EQUAL(*destination.object(after_assignment), 6);
+        ARIADNE_TESTING_EXPECT_EQUAL(destination.prune(root), 2u);
+        ARIADNE_TESTING_EXPECT_EQUAL(destination.size(), 1u);
+    }
 };
 
 int main(int argc, char **argv) {
@@ -307,5 +469,9 @@ int main(int argc, char **argv) {
                              test_moves_and_move_only_payloads);
     ARIADNE_TESTING_ADD_TEST(TestDerivationTree,
                              test_failed_construction_preserves_genealogy);
+    ARIADNE_TESTING_ADD_TEST(TestDerivationTree, test_prune_retains_boundary_and_other_branches);
+    ARIADNE_TESTING_ADD_TEST(TestDerivationTree, test_prune_root_leaf_and_metadata);
+    ARIADNE_TESTING_ADD_TEST(TestDerivationTree, test_recycled_slots_release_payloads_and_rollback_failures);
+    ARIADNE_TESTING_ADD_TEST(TestDerivationTree, test_pruned_storage_survives_moves);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }

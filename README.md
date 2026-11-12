@@ -34,9 +34,11 @@ The generic container does not interpret those fields or schedule evolution.
 
 The header-only implementation has checked, tree-qualified node IDs, stable
 object/metadata references across insertion, ordered child views, and iterative
-ancestor/descendant queries. It supports move-only payloads and tree moves.
-Pruning/regrowth and recombination are future work; inserting intermediate nodes
-or moving existing subtrees is outside the model. See the
+ancestor/descendant queries. `prune(id)` removes a node's strict descendants,
+retaining its payload and identity for regrowth through `add_child`. Freed slots
+are reused with generation-checked IDs, so old handles never identify new nodes.
+It supports move-only payloads and tree moves. Recombination remains future work;
+inserting intermediate nodes or moving existing subtrees is outside the model. See the
 [DerivationTree contract](doc/derivation_tree_design.md) for API, complexity,
 lifetime and exception guarantees.
 

@@ -1,8 +1,8 @@
 # DerivationTree design and initial implementation
 
 Status: the initial generic structure is implemented in
-`include/tree/derivation_tree.hpp`. Pruning/regrowth and recombination remain
-future implementation work. The domain-specific Evolution wrapper is not implemented.
+`include/tree/derivation_tree.hpp`, including pruning and regrowth. Recombination
+and the domain-specific Evolution wrapper are not implemented.
 
 ## Starting requirements and boundary
 
@@ -41,9 +41,9 @@ the parent object that produced it, and whether processing of the node is
 complete. These fields need no hybrid meaning in generic Tree.
 
 Node identity is stable, allocated independently of path, depth, sibling index
-and memory address. IDs are never reused; future pruning must preserve this
-rule. Foreign-tree IDs are rejected. The owner controls lifetimes; parent and child links are
-non-owning identifiers. Storage growth must not invalidate IDs.
+and memory address. IDs are never reused, including after pruning.
+Foreign-tree IDs are rejected. The owner controls lifetimes; parent and child
+links are non-owning identifiers. Storage growth must not invalidate IDs.
 
 ## Object progression and genealogy
 
@@ -67,31 +67,46 @@ metadata and links together, or leaves the logical tree unchanged on failure.
 
 ## Storage, lifetime and cost
 
-Nodes are stored directly in a `std::deque`, with flat ownership. Inserting
-nodes does not relocate existing payloads, and destroying a deep tree does not
-recursively follow children. Each node stores its parent index and a
-geometrically growing vector of child IDs. This avoids one separate node
-allocation per insertion and avoids quadratic copying of a wide child list.
-Allocating a deque block or growing a child vector can still allocate memory.
+Nodes occupy stable `std::deque<Slot>` storage. Each slot has an optional node,
+a generation number and a link used while the slot is free. Growing the deque
+or recycling a vacant slot never moves a retained payload. Each live node has a
+parent index and a geometrically growing vector of ordered child IDs.
 
-`DerivationTreeNodeId` is an opaque owner token and node index. It is comparable
-and streamable; default construction produces an invalid ID. Tree ownership
-tokens are allocated by a shared counter across template instantiations and are
-never recycled, including after destruction. IDs are process-local handles,
-not serialization keys. Owner-counter exhaustion throws `std::overflow_error`.
+`DerivationTreeNodeId` is an opaque ownership token, slot index and generation.
+It is comparable and streamable; default construction produces an invalid ID.
+Tree ownership tokens use a shared counter across template instantiations.
+Nodes do not require a global counter: a slot gains a generation when its node
+is pruned. Reusing that slot therefore produces a distinct identifier. An
+exhausted generation retires the slot permanently rather than wrapping. Owner-
+token exhaustion throws `std::overflow_error`. IDs and their diagnostic
+`owner:slot:generation` representation are process-local, not serialization keys.
+
+Freed slots form an intrusive free list and are reused before storage grows.
+Payloads and their child-vector resources are destroyed immediately when pruned;
+slot storage remains reserved up to its high-water mark for reuse. The retained
+boundary also keeps its child-vector capacity. Except for permanently retired
+slots at generation exhaustion, slot storage follows peak simultaneous demand,
+not the accumulated number of growth/pruning cycles. Reclamation does not shift
+retained nodes and does not require a heap allocation per node.
 
 Lookup, containment, parent and borrowed children access take O(1). Node
-insertion takes amortized O(1), excluding payload construction; node storage
-does not copy/move existing payloads. Ancestor traversal takes O(depth) and
-returns immediate parent first. Descendants are returned in insertion-ordered
-depth-first preorder in O(visited nodes), using an iterative traversal. Both
-queries exclude the node itself and allocate their result vectors.
+insertion takes amortized O(1), excluding payload construction, and does not
+copy/move existing payloads. Ancestor traversal takes O(depth) and returns the
+immediate parent first. Descendants use insertion-ordered depth-first preorder
+in O(visited nodes). Both queries exclude the input node and allocate result
+vectors.
 
-Payload references survive insertion and tree moves. `children(id)` returns a
-`std::span<const NodeId>`: that parent's child-vector growth may invalidate its
-views, including when a subsequent payload constructor throws. Reacquire views
-after attempted insertion under their parent. References/views expire when
-their nodes are destroyed. No removal operation exists in this version.
+Pruning takes O(removed nodes) time plus payload destruction, O(1) auxiliary
+storage and no allocation after identifier validation. It follows parent and
+last-child links in iterative postorder, so a deep branch uses no recursive
+call stack. `size()` reports live nodes, excluding free or retired slots.
+
+Payload references survive growth, tree moves and pruning elsewhere. References
+to removed payloads expire immediately even if their slots are later reused.
+`children(id)` returns a borrowed `std::span<const NodeId>`: reacquire the view
+after attempted growth under that parent (even failed construction) or pruning
+its descendants. Views of removed nodes expire; views of unrelated retained
+nodes are unaffected.
 
 Copying a tree is disabled so that duplicating an owner cannot alias its IDs.
 Moving transfers the nodes and their IDs without moving individual payloads;
@@ -101,7 +116,7 @@ their references and IDs. Self-move assignment has no effect. Moves may allocate
 the empty replacement owner/storage and are not declared `noexcept`.
 
 Concurrent mutation is unsupported; shared access involving a writer requires
-external synchronization. Read-only access can be shared. Payload constructors
+external synchronization. Read-only access can be shared. Payload constructors and destructors
 must not reenter the same tree. Owner-token allocation is synchronized, which
 does not make operations on a tree synchronized.
 
@@ -128,6 +143,7 @@ The public header is available directly or through `ariadne-tree.hpp`:
 ```text
 create_root(object, metadata) -> NodeId
 add_child(parent, object, metadata) -> NodeId
+prune(NodeId) -> removed descendant count
 empty(), size(), contains(NodeId)
 root() -> optional NodeId
 object(NodeId), metadata(NodeId)
@@ -160,22 +176,26 @@ subtree are not options, including for backtracking. Existing nodes are not
 relocated in the genealogy. Moving the owning C++ container transfers ownership
 without changing that genealogy and is a separate operation.
 
-The current implementation supports growth. **Pruning is the missing generic
-operation needed to complete this structural model.** Stable IDs alone do not
-provide pruning or backtracking.
+The implementation supports growth and `prune(id)`, which removes all strict
+descendants and retains id itself as the boundary for regrowth. It does not
+remove a selected node from its parent's child list. Root pruning keeps the
+root; pruning a leaf is a no-op. There is no intermediate insertion or
+reparenting API.
 
-### Pruning contract to settle before implementation
+### Pruning contract
 
-- Define exactly which nodes are removed and which checkpoint is retained for
-  regrowth. Pruning a child subtree and pruning all descendants of a node are
-  different boundaries; an API must state which it performs.
-- Remove pruned nodes from active genealogy and reject their IDs on lookup.
-- Never reuse IDs issued to removed nodes when the tree regrows.
-- Preserve identities and payload references for retained nodes. End the borrowed
-  reference/view lifetime of removed nodes and document affected children views.
-- Permit adding new children at the retained boundary after pruning.
-- Define storage reclamation without shifting retained nodes: erasing a middle
-  range from the current deque is not a suitable shortcut for these guarantees.
+- The boundary keeps its object, metadata, ID, parent and sibling position.
+- All strict descendants are destroyed, disappear from traversal and fail
+  `contains` and subsequent access, including another `prune` call.
+- Pruned identifiers never become valid again during slot reuse.
+- The return value is the removed node count; live `size()` decreases by that
+  count and the boundary remains a leaf ready for `add_child`.
+- Other branches, their order, identifiers and payload references are unchanged.
+- Invalid, pruned or foreign input IDs throw `std::out_of_range` before mutation.
+- The operation allocates no temporary traversal storage and cannot fail after
+  validation under the required nonthrowing, non-reentrant destructor contract.
+- Metadata is application-owned: pruning does not automatically reset completion
+  flags or truncate the boundary's trajectory list.
 
 A payload may itself contain a trajectory history. Truncating that history and
 invalidating children derived from removed entries are consumer responsibilities
@@ -189,7 +209,7 @@ relationship from arbitrary Object or Metadata types.
 | Store and continue a trajectory after producing children | Mutable object/metadata access | Already supported |
 | Mark local completion or logical retirement | Consumer metadata can carry the status | Active-versus-historical selection belongs to Evolution |
 | Inspect genealogy | Parent, ordered children and materialized ancestor/descendant lists | Allocation-free visitors/ranges are an optional later optimization |
-| Prune and regrow | Not implemented | Define retained boundary, stale-ID rejection and reference/storage guarantees |
+| Prune and regrow | `prune(id)` retains the boundary; `add_child` reuses slots with fresh generations | Implemented; payload truncation and completion reset remain consumer policy |
 | Recombine selected sibling trajectories | Source groups can be inspected | Record provenance and create replacements; prune or retire superseded branches without moving them |
 | Clone or persist a tree | Copy disabled; no serialization | Optional independent ownership/identity mappings if later needed |
 
@@ -205,18 +225,19 @@ scheduling priorities remain domain policies. They require neither a third
 template parameter nor a built-in hybrid operation enum. Persistence and
 concurrent mutation are not prerequisites for the initial workflow.
 
-Planned pruning tests must cover removal of exactly the requested branch,
-retained-node identity/reference stability, stale-handle rejection, regrowth
-with fresh IDs, and pruning at root/leaf boundaries. They are future tests;
-there is no pruning API in the current header.
+Pruning tests cover exact descendant removal, unaffected branches and ordering,
+root/leaf boundaries, payload reclamation, repeated regrowth without reviving
+stale handles, throwing construction in recycled slots, and tree moves with
+vacant slots. The 20000-edge chain is also pruned iteratively.
 
 ## Verification
 
 `tests/test_derivation_tree.cpp` exercises mutable ordered payloads and
 node-local completion, genealogy order, 4096 children with immovable payloads,
 a 20000-edge chain, invalid/foreign/expired IDs, tree moves with move-only
-payloads, and throwing object/metadata constructors. The installed-library
-C++ tutorial demonstrates continued parent progression after child creation.
+payloads, throwing object/metadata constructors, and pruning/regrowth with
+slot reuse. The installed-library C++ tutorial demonstrates parent progression,
+pruning a retained checkpoint and regrowing with a distinct child identifier.
 
 The initial container stores completion as application metadata; a hybrid
 scheduler is not part of these tests. Later capabilities must retain the
