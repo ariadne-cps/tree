@@ -60,8 +60,7 @@ interpreting the samples or deciding when work is complete.
 
    doubled creates offset with [5]. parent(offset) is doubled;
    ancestors(offset) returns doubled, source. descendants(source) uses
-   depth-first preorder and excludes source itself. The printing helpers use
-   const object/metadata access to show this genealogy:
+   depth-first preorder and excludes source itself. These operations produce this genealogy:
 
      source [1, 2, 3] complete
        doubled [4, 6] complete
@@ -91,9 +90,9 @@ interpreting the samples or deciding when work is complete.
    references survive growth and pruning elsewhere; their internal vector
    iterators still follow the usual std::vector lifetime rules.
 
-The program prints the before/pruned/regrown states, checks the relationships
-and expected values, and finishes with "Ariadne Tree tutorial passed." It exits
-with a nonzero status and a diagnostic if a DerivationTree expectation fails.
+The source is a direct sequence of API operations. Query results are stored in
+local variables for inspection; [[maybe_unused]] lets the C++ example retain
+those results without requiring output.
 The C++ tutorial executable is already built and run by the platform CI jobs.
 
 Python example

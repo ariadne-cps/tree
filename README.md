@@ -45,7 +45,7 @@ lifetime and exception guarantees.
 The [installed-library tutorial](tutorial/README) explains `DerivationTree` with
 an ordered list of integer samples and simple label/completion metadata. Its
 C++ executable shows payload updates, genealogy queries, pruning and regrowth,
-and checks that an old node ID remains invalid after storage reuse.
+including membership queries for a removed node after storage reuse.
 
 ## Layout
 
