@@ -83,7 +83,8 @@ int traverse_python_tree(PyObject* self_base, visitproc visit, void* arg) noexce
     try {
         // GC can see an instance created by __new__ before __init__ has run.
         if (py::detail::is_holder_constructed(self_base)) {
-            const auto& tree = py::cast<const PythonDerivationTree&>(py::handle(self_base)).tree();
+            const auto* python_tree = py::cast<const PythonDerivationTree*>(py::handle(self_base));
+            const auto& tree = python_tree->tree();
             if (const auto root_id = tree.root()) {
                 Py_VISIT(tree.object(*root_id).ptr());
                 Py_VISIT(tree.metadata(*root_id).ptr());
