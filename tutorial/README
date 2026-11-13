@@ -1,11 +1,107 @@
 Ariadne Tree installed-library tutorials
 
+The C++ executable tutorial_tree.cpp demonstrates both BinaryTreeNode and
+DerivationTree. It uses the installed public header ariadne-tree.hpp, just as a
+separate application would. No Evolution dependency is needed.
+
 After installing Tree to a prefix:
 
   cmake -S tutorial -B tutorial-build -DCMAKE_PREFIX_PATH=/path/to/install
   cmake --build tutorial-build
   ./tutorial-build/tutorial_tree
 
+On a multi-configuration generator, select a configuration while building and
+run the executable in that configuration's directory, for example:
+
+  cmake --build tutorial-build --config Debug
+  ./tutorial-build/Debug/tutorial_tree
+
+C++ walkthrough: an object and its metadata
+-----------------------------------------
+
+The DerivationTree example deliberately uses two small application types:
+
+  struct SampleSeries {
+      std::vector<int> values;
+  };
+
+  struct SampleMetadata {
+      std::string label;
+      bool complete;
+  };
+
+  using SampleTree = Ariadne::DerivationTree<SampleSeries, SampleMetadata>;
+
+The object contains an ordered sequence of samples. Metadata gives the node a
+readable label and a local completion flag. Tree stores these types without
+interpreting the samples or deciding when work is complete.
+
+1. Create the root
+
+   create_root starts the source node with samples [1, 2]. root() returns an
+   optional ID: an empty tree has no root. Store the returned opaque NodeId;
+   do not infer a position or ordering from its diagnostic representation.
+
+2. Derive two children
+
+   add_child creates doubled with [4] and tripled with [6], both derived from
+   the last source sample, 2. The new objects are explicitly supplied by the
+   example: the generic tree does not calculate or copy them automatically.
+   children(source) retains the order doubled, tripled.
+
+3. Continue an existing object
+
+   object(source).values.push_back(3) changes the existing source object.
+   Appending 6 to doubled changes that child's object. Neither update creates
+   a node. Setting metadata(source).complete = true completes only source;
+   the children still need work.
+
+4. Inspect genealogy
+
+   doubled creates offset with [5]. parent(offset) is doubled;
+   ancestors(offset) returns doubled, source. descendants(source) uses
+   depth-first preorder and excludes source itself. The printing helpers use
+   const object/metadata access to show this genealogy:
+
+     source [1, 2, 3] complete
+       doubled [4, 6] complete
+         offset [5] needs work
+       tripled [6] needs work
+
+5. Prune at a retained checkpoint
+
+   prune(doubled) returns 1 and removes offset. doubled stays in the same
+   position with the same ID, samples [4, 6] and complete flag. source and
+   tripled are unchanged. contains(offset) becomes false; object(offset)
+   throws std::out_of_range. Discard views/references to removed nodes and
+   reacquire the pruning boundary's children view after pruning.
+
+6. Regrow using add_child
+
+   The application explicitly resets doubled's completion flag and appends 8.
+   add_child then creates replacement with [9] under doubled:
+
+     source [1, 2, 3] complete
+       doubled [4, 6, 8] needs work
+         replacement [9] needs work
+       tripled [6] needs work
+
+   replacement has a different ID from offset. The old ID remains invalid
+   even if the implementation reuses its storage slot. Retained payload
+   references survive growth and pruning elsewhere; their internal vector
+   iterators still follow the usual std::vector lifetime rules.
+
+The program prints the before/pruned/regrown states, checks the relationships
+and expected values, and finishes with "Ariadne Tree tutorial passed." It exits
+with a nonzero status and a diagnostic if a DerivationTree expectation fails.
+The C++ tutorial executable is already built and run by the platform CI jobs.
+
+Python example
+--------------
+
 When the Python extension has been installed:
 
   python tutorial/tutorial_tree.py
+
+The Python example demonstrates the existing BinaryTreeNode binding. The
+custom Object/Metadata DerivationTree example above is a C++ template example.

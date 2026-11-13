@@ -42,6 +42,11 @@ inserting intermediate nodes or moving existing subtrees is outside the model. S
 [DerivationTree contract](doc/derivation_tree_design.md) for API, complexity,
 lifetime and exception guarantees.
 
+The [installed-library tutorial](tutorial/README) explains `DerivationTree` with
+an ordered list of integer samples and simple label/completion metadata. Its
+C++ executable shows payload updates, genealogy queries, pruning and regrowth,
+and checks that an old node ID remains invalid after storage reuse.
+
 ## Layout
 
 - `include/tree/`: public C++ headers; `include/ariadne-tree.hpp` is the umbrella header.
