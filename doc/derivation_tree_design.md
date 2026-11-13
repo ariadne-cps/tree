@@ -232,6 +232,35 @@ vacant slots. The 20000-edge chain is also pruned iteratively.
 
 ## Verification
 
+### Python binding contract
+
+The Python module exposes `DerivationTree` as a binding of the generic core with
+Python object and metadata references, not a specialization to tutorial types.
+Its root/child creation, access, genealogy and pruning operations correspond to
+the C++ API. Optional IDs become None and collections become snapshot lists.
+Node IDs compare by owner, slot and generation; they are opaque and unhashable.
+Invalid/pruned/foreign lookup raises IndexError; duplicate-root creation raises
+RuntimeError.
+
+`object(id)` and `metadata(id)` return the stored Python objects themselves.
+References obtained before pruning keep those Python objects alive under normal
+Python ownership, while the old node ID remains invalid. No implicit copying
+or conversion of user-defined payload classes is performed.
+
+The binding reports all live payload references to Python's cyclic garbage
+collector and guards instances allocated by __new__ before C++ initialization.
+Clearing cycles replaces the core before dropping its references. During Python
+pruning, temporary strong references defer payload finalizers until C++ pruning
+is complete, allowing finalizers to observe a consistent tree. This adapter
+uses O(removed nodes) temporary references in addition to the core's O(1)
+auxiliary pruning storage. GC traversal also uses a snapshot of live node IDs.
+Binding calls keep the GIL; the generic core's concurrency contract is unchanged.
+
+C++ and Python tutorials must evolve together, including any bindings needed
+to mirror an operation. The examples contain direct operations only. Binding
+regressions and a check of the tutorial's Python scenario belong in
+`python/tests/test_derivation_tree.py`, not in either tutorial.
+
 `tests/test_derivation_tree.cpp` exercises mutable ordered payloads and
 node-local completion, genealogy order, 4096 children with immovable payloads,
 a 20000-edge chain, invalid/foreign/expired IDs, tree moves with move-only

@@ -1,8 +1,9 @@
 Ariadne Tree installed-library tutorials
 
-The C++ executable tutorial_tree.cpp demonstrates both BinaryTreeNode and
-DerivationTree. It uses the installed public header ariadne-tree.hpp, just as a
-separate application would. No Evolution dependency is needed.
+The C++ and Python tutorials demonstrate the same BinaryTreeNode and
+DerivationTree operations, in the same order. The C++ executable uses the
+installed public header ariadne-tree.hpp; Python uses the installed
+pyariadne_tree module. No Evolution dependency is needed.
 
 After installing Tree to a prefix:
 
@@ -16,8 +17,8 @@ run the executable in that configuration's directory, for example:
   cmake --build tutorial-build --config Debug
   ./tutorial-build/Debug/tutorial_tree
 
-C++ walkthrough: an object and its metadata
------------------------------------------
+Shared walkthrough: an object and its metadata
+---------------------------------------------
 
 The DerivationTree example deliberately uses two small application types:
 
@@ -31,6 +32,27 @@ The DerivationTree example deliberately uses two small application types:
   };
 
   using SampleTree = Ariadne::DerivationTree<SampleSeries, SampleMetadata>;
+
+The Python example declares the same data using standard dataclasses:
+
+  from dataclasses import dataclass, field
+  from pyariadne_tree import DerivationTree
+
+  @dataclass
+  class SampleSeries:
+      values: list[int] = field(default_factory=list)
+
+  @dataclass
+  class SampleMetadata:
+      label: str
+      complete: bool
+
+  SampleTree = DerivationTree
+
+Python's DerivationTree accepts arbitrary Python objects and metadata, including
+these user-defined classes. It stores strong references to them; object(id) and
+metadata(id) return the same objects, so attribute updates and list append work
+directly. There is no separate binding specialized to SampleSeries.
 
 The object contains an ordered sequence of samples. Metadata gives the node a
 readable label and a local completion flag. Tree stores these types without
@@ -51,7 +73,8 @@ interpreting the samples or deciding when work is complete.
 
 3. Continue an existing object
 
-   object(source).values.push_back(3) changes the existing source object.
+   object(source).values.push_back(3) changes the existing C++ source object;
+   Python uses object(source).values.append(3) for the same operation.
    Appending 6 to doubled changes that child's object. Neither update creates
    a node. Setting metadata(source).complete = true completes only source;
    the children still need work.
@@ -72,7 +95,8 @@ interpreting the samples or deciding when work is complete.
    prune(doubled) returns 1 and removes offset. doubled stays in the same
    position with the same ID, samples [4, 6] and complete flag. source and
    tripled are unchanged. contains(offset) becomes false; object(offset)
-   throws std::out_of_range. Discard views/references to removed nodes and
+   throws std::out_of_range in C++, or raises IndexError in Python. Discard
+   C++ views/references to removed nodes and
    reacquire the pruning boundary's children view after pruning.
 
 6. Regrow using add_child
@@ -90,17 +114,27 @@ interpreting the samples or deciding when work is complete.
    references survive growth and pruning elsewhere; their internal vector
    iterators still follow the usual std::vector lifetime rules.
 
+   In Python, a previously returned object reference keeps that Python object
+   alive even if its node is pruned. Its old node ID still fails contains() and
+   cannot be used for a new lookup. Genealogy collections are snapshot lists,
+   rather than borrowed C++ children spans; changing a returned list does not
+   change the tree. root() and parent() return None where C++ returns nullopt.
+
 The source is a direct sequence of API operations. Query results are stored in
 local variables for inspection; [[maybe_unused]] lets the C++ example retain
 those results without requiring output.
-The C++ tutorial executable is already built and run by the platform CI jobs.
+Both installed-library tutorials are built/run by the platform CI jobs. Checks
+of binding behavior and the demonstrated Python scenario live in python/tests,
+outside the tutorials.
 
-Python example
---------------
+Run the Python counterpart
+--------------------------
 
 When the Python extension has been installed:
 
   python tutorial/tutorial_tree.py
 
-The Python example demonstrates the existing BinaryTreeNode binding. The
-custom Object/Metadata DerivationTree example above is a C++ template example.
+The two sources are maintained together. Every new or changed C++ tutorial
+operation must have its Python counterpart in the same change, adding bindings
+when needed. Keep both examples as direct API operations without custom helpers,
+assertions, output or success/failure messages.

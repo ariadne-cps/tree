@@ -1,6 +1,8 @@
 include_directories(${Python3_INCLUDE_DIRS})
 get_target_property(PYTHON_COMMON_SOURCE_DIR pyariadne-python-common SOURCE_DIR)
-add_library(pyariadne-tree-submodule-obj OBJECT binary_tree_submodule.cpp)
+add_library(pyariadne-tree-submodule-obj OBJECT
+    binary_tree_submodule.cpp
+    derivation_tree_submodule.cpp)
 target_include_directories(pyariadne-tree-submodule-obj PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${PYTHON_COMMON_SOURCE_DIR}/include")

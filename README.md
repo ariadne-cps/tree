@@ -20,7 +20,7 @@ Although independently maintained and usable, this repository is also part of th
 - Prefix insertion, path membership, intersection, difference, inclusion and intersection predicates.
 - Deep copying and serialization of the tree shape and leaf values.
 - Standalone C++ regression tests with no grid or paving dependency.
-- Optional Python binding exposing `BinaryTreeNode` and its safe value-based operations.
+- Optional Python bindings for `BinaryTreeNode`, `DerivationTree` and opaque node IDs.
 - Installed-library C++ and Python tutorials.
 - Ubuntu, macOS, Windows, sanitizer and coverage CI.
 
@@ -44,8 +44,8 @@ lifetime and exception guarantees.
 
 The [installed-library tutorial](tutorial/README) explains `DerivationTree` with
 an ordered list of integer samples and simple label/completion metadata. Its
-C++ executable shows payload updates, genealogy queries, pruning and regrowth,
-including membership queries for a removed node after storage reuse.
+C++ and Python sources show matching payload updates, genealogy queries, pruning
+and regrowth, including membership queries for a removed node after storage reuse.
 
 ## Layout
 
@@ -95,7 +95,18 @@ See the [BinaryTreeNode design specification](doc/binary_tree_design.md) for the
 
 ## Python bindings
 
-Python 3.11 or newer with development headers is used when `BUILD_PYTHON_BINDINGS=ON`. The standalone extension is `pyariadne_tree` and exposes `BinaryTreeNode` with Boolean construction, refinement, path membership, prefix insertion and set predicates. Its Python API deliberately does not expose borrowed raw child pointers.
+Python 3.11 or newer with development headers is used when `BUILD_PYTHON_BINDINGS=ON`.
+The standalone extension is `pyariadne_tree`. It exposes `BinaryTreeNode` with
+Boolean construction, refinement, path membership, prefix insertion and set
+predicates, plus `DerivationTree` with generic Python objects and metadata.
+`DerivationTreeNodeId` provides opaque equality-comparable IDs. Genealogy queries
+return IDs and list snapshots; the Python API exposes no borrowed raw pointers.
+
+Python payloads are retained by reference and can be updated in place. Pruning
+invalidates node IDs while Python references previously obtained from `object`
+or `metadata` follow normal Python ownership. Python-owned cycles are visible to
+the garbage collector. The [shared tutorial](tutorial/README) demonstrates the
+same operations in C++ and Python using application-defined data types.
 
 Python tests use pytest. Configure with `-DPYTHON_ENFORCE_TESTS=ON` to require Python and pytest rather than skip unavailable Python tests.
 

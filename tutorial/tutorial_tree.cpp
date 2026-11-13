@@ -38,10 +38,10 @@ int main() {
     BinaryTreeNode prefixes(false);
     prefixes.add_enabled(BinaryWord("01"));
     [[maybe_unused]] const bool path_enabled = prefixes.is_enabled(BinaryWord("010"));
-    BinaryTreeNode all(true);
-    all.split();
-    [[maybe_unused]] const bool is_subset = BinaryTreeNode::subset(&prefixes, &all);
-    all.recombine();
+    BinaryTreeNode all_paths(true);
+    all_paths.split();
+    [[maybe_unused]] const bool is_subset = BinaryTreeNode::subset(&prefixes, &all_paths);
+    all_paths.recombine();
 
     // An application object and its node metadata: exactly two template parameters.
     struct SampleSeries {
@@ -53,11 +53,10 @@ int main() {
     };
     using SampleTree = DerivationTree<SampleSeries, SampleMetadata>;
 
-    // Create a root object containing the ordered samples [1, 2].
+    // Create a root object and initialize its ordered samples to [1, 2].
     SampleTree samples;
-    SampleSeries initial_series;
-    initial_series.values = {1, 2};
-    const auto root_id = samples.create_root(initial_series, SampleMetadata{"source", false});
+    const auto root_id = samples.create_root(SampleSeries{}, SampleMetadata{"source", false});
+    samples.object(root_id).values = {1, 2};
 
     // Derive two children from the source sample 2.
     const int source_value = samples.object(root_id).values.back();
