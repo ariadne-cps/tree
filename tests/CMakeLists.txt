@@ -1,7 +1,7 @@
 include(CTest)
 add_executable(test_binary_tree test_binary_tree.cpp)
 target_link_libraries(test_binary_tree PRIVATE ariadne-tree tree ariadne-testing)
-ariadne_add_silent_test(NAME test_binary_tree COMMAND $<TARGET_FILE:test_binary_tree> --concise)
+add_test(NAME test_binary_tree COMMAND $<TARGET_FILE:test_binary_tree> --concise --logtonull)
 set_property(TEST test_binary_tree PROPERTY LABELS "tree")
 if(WIN32)
     set_tests_properties(test_binary_tree PROPERTIES ENVIRONMENT_MODIFICATION
@@ -12,7 +12,7 @@ add_dependencies(tests test_binary_tree)
 
 add_executable(test_derivation_tree test_derivation_tree.cpp)
 target_link_libraries(test_derivation_tree PRIVATE ariadne-tree tree ariadne-testing)
-ariadne_add_silent_test(NAME test_derivation_tree COMMAND $<TARGET_FILE:test_derivation_tree> --concise)
+add_test(NAME test_derivation_tree COMMAND $<TARGET_FILE:test_derivation_tree> --concise --logtonull)
 set_property(TEST test_derivation_tree PROPERTY LABELS "tree")
 if(WIN32)
     set_tests_properties(test_derivation_tree PROPERTIES ENVIRONMENT_MODIFICATION
